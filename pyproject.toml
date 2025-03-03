@@ -1,0 +1,26 @@
+[project]
+name = "i3viewer"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Huber Paul Gilt Lopez",email = "hubergilt@hotmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    "vtk (>=9.4.1,<10.0.0)",
+    "pyside6 (>=6.8.2.1,<7.0.0.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+i3viewer = "i3viewer.i3main:main"
+
+[tool.poetry.group.dev.dependencies]
+spyder-kernels = "3.0.*"
+pyinstaller = "^6.12.0"
+
