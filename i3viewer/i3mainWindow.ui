@@ -14,8 +14,8 @@
    <string>Interactive 3D Model Viewer</string>
   </property>
   <property name="windowIcon">
-   <iconset>
-    <normaloff>:/Icons/help.png</normaloff>:/Icons/help.png</iconset>
+   <iconset resource="icons.qrc">
+    <normaloff>:/icons/help.png</normaloff>:/icons/help.png</iconset>
   </property>
   <property name="iconSize">
    <size>
@@ -24,7 +24,7 @@
    </size>
   </property>
   <widget class="QWidget" name="centralwidget">
-   <layout class="QVBoxLayout" name="verticalLayout">
+   <layout class="QHBoxLayout" name="horizontalLayout_3">
     <item>
      <widget class="QTabWidget" name="tabWidget">
       <property name="currentIndex">
@@ -34,7 +34,7 @@
        <attribute name="title">
         <string>Viewer</string>
        </attribute>
-       <layout class="QVBoxLayout" name="verticalLayout_2">
+       <layout class="QHBoxLayout" name="horizontalLayout_4">
         <item>
          <widget class="QGroupBox" name="groupBoxGraph">
           <property name="sizePolicy">
@@ -65,7 +65,7 @@
            <item>
             <widget class="QSplitter" name="splitter">
              <property name="orientation">
-              <enum>Qt::Orientation::Horizontal</enum>
+              <enum>Qt::Horizontal</enum>
              </property>
              <widget class="QFrame" name="tableFrame">
               <layout class="QHBoxLayout" name="horizontalLayout_2">
@@ -114,7 +114,7 @@
        <attribute name="title">
         <string>Table</string>
        </attribute>
-       <layout class="QVBoxLayout" name="verticalLayout_3">
+       <layout class="QHBoxLayout" name="horizontalLayout_5">
         <item>
          <widget class="QTableView" name="tableView"/>
         </item>
@@ -130,7 +130,7 @@
      <x>0</x>
      <y>0</y>
      <width>1002</width>
-     <height>22</height>
+     <height>27</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
@@ -148,7 +148,7 @@
   <widget class="QStatusBar" name="statusbar"/>
   <widget class="QToolBar" name="mainToolBar">
    <property name="orientation">
-    <enum>Qt::Orientation::Horizontal</enum>
+    <enum>Qt::Horizontal</enum>
    </property>
    <property name="iconSize">
     <size>
@@ -194,7 +194,7 @@
    </property>
    <property name="icon">
     <iconset resource="icons.qrc">
-     <normaloff>:/icons/icons/fileopen.png</normaloff>:/icons/icons/fileopen.png</iconset>
+     <normaloff>:/icons/fileopen.png</normaloff>:/icons/fileopen.png</iconset>
    </property>
    <property name="text">
     <string>Open File...</string>
@@ -208,7 +208,7 @@
   <action name="actionHelp">
    <property name="icon">
     <iconset resource="icons.qrc">
-     <normaloff>:/icons/icons/help.png</normaloff>:/icons/icons/help.png</iconset>
+     <normaloff>:/icons/help.png</normaloff>:/icons/help.png</iconset>
    </property>
    <property name="text">
     <string>Help</string>
@@ -217,7 +217,7 @@
   <action name="actionSave">
    <property name="icon">
     <iconset resource="icons.qrc">
-     <normaloff>:/icons/icons/filesave.png</normaloff>:/icons/icons/filesave.png</iconset>
+     <normaloff>:/icons/filesave.png</normaloff>:/icons/filesave.png</iconset>
    </property>
    <property name="text">
     <string>Save</string>
@@ -226,97 +226,97 @@
   <action name="actionFront">
    <property name="icon">
     <iconset resource="icons.qrc">
-     <normaloff>:/icons/icons/front.svg</normaloff>:/icons/icons/front.svg</iconset>
+     <normaloff>:/icons/front.svg</normaloff>:/icons/front.svg</iconset>
    </property>
    <property name="text">
     <string>Front</string>
    </property>
    <property name="menuRole">
-    <enum>QAction::MenuRole::TextHeuristicRole</enum>
+    <enum>QAction::NoRole</enum>
    </property>
   </action>
   <action name="actionBack">
    <property name="icon">
     <iconset resource="icons.qrc">
-     <normaloff>:/icons/icons/back.svg</normaloff>:/icons/icons/back.svg</iconset>
+     <normaloff>:/icons/back.svg</normaloff>:/icons/back.svg</iconset>
    </property>
    <property name="text">
     <string>Back</string>
    </property>
    <property name="menuRole">
-    <enum>QAction::MenuRole::TextHeuristicRole</enum>
+    <enum>QAction::NoRole</enum>
    </property>
   </action>
   <action name="actionTop">
    <property name="icon">
     <iconset resource="icons.qrc">
-     <normaloff>:/icons/icons/top.svg</normaloff>:/icons/icons/top.svg</iconset>
+     <normaloff>:/icons/top.svg</normaloff>:/icons/top.svg</iconset>
    </property>
    <property name="text">
     <string>Top</string>
    </property>
    <property name="menuRole">
-    <enum>QAction::MenuRole::TextHeuristicRole</enum>
+    <enum>QAction::NoRole</enum>
    </property>
   </action>
   <action name="actionBottom">
    <property name="icon">
     <iconset resource="icons.qrc">
-     <normaloff>:/icons/icons/bottom.svg</normaloff>:/icons/icons/bottom.svg</iconset>
+     <normaloff>:/icons/bottom.svg</normaloff>:/icons/bottom.svg</iconset>
    </property>
    <property name="text">
     <string>Bottom</string>
    </property>
    <property name="menuRole">
-    <enum>QAction::MenuRole::NoRole</enum>
+    <enum>QAction::NoRole</enum>
    </property>
   </action>
   <action name="actionLeft">
    <property name="icon">
     <iconset resource="icons.qrc">
-     <normaloff>:/icons/icons/left.svg</normaloff>:/icons/icons/left.svg</iconset>
+     <normaloff>:/icons/left.svg</normaloff>:/icons/left.svg</iconset>
    </property>
    <property name="text">
     <string>Left</string>
    </property>
    <property name="menuRole">
-    <enum>QAction::MenuRole::TextHeuristicRole</enum>
+    <enum>QAction::NoRole</enum>
    </property>
   </action>
   <action name="actionRight">
    <property name="icon">
     <iconset resource="icons.qrc">
-     <normaloff>:/icons/icons/right.svg</normaloff>:/icons/icons/right.svg</iconset>
+     <normaloff>:/icons/right.svg</normaloff>:/icons/right.svg</iconset>
    </property>
    <property name="text">
     <string>Right</string>
    </property>
    <property name="menuRole">
-    <enum>QAction::MenuRole::TextHeuristicRole</enum>
+    <enum>QAction::NoRole</enum>
    </property>
   </action>
   <action name="actionIso">
    <property name="icon">
     <iconset resource="icons.qrc">
-     <normaloff>:/icons/icons/iso.svg</normaloff>:/icons/icons/iso.svg</iconset>
+     <normaloff>:/icons/iso.svg</normaloff>:/icons/iso.svg</iconset>
    </property>
    <property name="text">
     <string>Iso</string>
    </property>
    <property name="menuRole">
-    <enum>QAction::MenuRole::TextHeuristicRole</enum>
+    <enum>QAction::NoRole</enum>
    </property>
   </action>
   <action name="actionFit">
    <property name="icon">
     <iconset resource="icons.qrc">
-     <normaloff>:/icons/icons/resize.svg</normaloff>:/icons/icons/resize.svg</iconset>
+     <normaloff>:/icons/resize.svg</normaloff>:/icons/resize.svg</iconset>
    </property>
    <property name="text">
     <string>Fit</string>
    </property>
    <property name="menuRole">
-    <enum>QAction::MenuRole::TextHeuristicRole</enum>
+    <enum>QAction::NoRole</enum>
    </property>
   </action>
  </widget>
@@ -324,7 +324,7 @@
   <customwidget>
    <class>i3vtkWidget</class>
    <extends>QWidget</extends>
-   <header>i3vtkWidget</header>
+   <header>i3viewer.i3vtkWidget</header>
   </customwidget>
  </customwidgets>
  <resources>

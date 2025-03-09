@@ -1,4 +1,4 @@
-# Makefile for Cross-Compiling Python Executable for Windows
+# Makefile for Cross-Compiling Python Executable for Linux and Windows
 
 # Compiler settings for MinGW-w64
 CC := x86_64-w64-mingw32-gcc
@@ -8,11 +8,13 @@ DLLTOOL := x86_64-w64-mingw32-dlltool
 
 # PyInstaller settings
 PYINSTALLER := poetry run pyinstaller
-TARGET_NAME := 3dviewer.exe
+TARGET_NAME := 3dviewer
 SOURCE_SCRIPT := i3viewer/i3main.py
-DIST_DIR := dist-windows
-BUILD_DIR := build-windows
+DIST_DIR := dist
+BUILD_DIR := build
 SPEC_FILE := 3dviewer.spec
+SPEC_EXE := 3dviewer.win.spec
+SPEC_ELF := 3dviewer.elf.spec
 
 # Hidden imports for VTK modules
 HIDDEN_IMPORTS := \
@@ -30,19 +32,26 @@ export CXX
 export WINDRES
 export DLLTOOL
 
-# Default target: Build the Windows executable
-all: build
+# Default target: run on Linux
+all:
+	poetry run i3viewer
 
 # Build using PyInstaller with cross-compilation
 build:
-	$(PYINSTALLER) --clean --onefile --name=$(TARGET_NAME) \
+	$(PYINSTALLER) --clean --onefile --name=$(TARGET_NAME).exe \
 		--distpath=$(DIST_DIR) --workpath=$(BUILD_DIR) \
 		$(HIDDEN_IMPORTS) $(SOURCE_SCRIPT)
 
 # Build using the .spec file
-spec:
-	$(PYINSTALLER) --clean $(SPEC_FILE)
+elf:
+	$(PYINSTALLER) --clean $(SPEC_ELF)
+exe:
+	wine $(PYINSTALLER) --clean $(SPEC_EXE)
+runelf:
+	$(DIST_DIR)/$(TARGET_NAME)
+runexe:
+	wine $(DIST_DIR)/$(TARGET_NAME).exe
 
 # Clean all build artifacts
 clean:
-	rm -rf $(DIST_DIR) $(BUILD_DIR) __pycache__ *.spec
+	rm -rf $(DIST_DIR) $(BUILD_DIR) __pycache__

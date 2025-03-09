@@ -18,9 +18,12 @@ class i3vtkWidget(QWidget):
         self.model = None
         self.actor = None
         self.TrihedronPos = 1
-
+        
         if self.Parent == None:
             self.resize(500, 500)
+        else:
+            self.resize(self.Parent.size())
+            
         self.ShowEdges = False
         self.SetupWnd()
 
