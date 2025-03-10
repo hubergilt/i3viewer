@@ -4,6 +4,7 @@ from PySide6.QtGui import QStandardItemModel
 import vtk
 import vtkmodules.qt.QVTKRenderWindowInteractor as QVTK
 from PySide6.QtWidgets import QApplication, QWidget
+from PySide6.QtWidgets import QHBoxLayout
 from vtk import vtkActor
 
 from i3viewer.i3model import i3model
@@ -45,9 +46,16 @@ class i3vtkWidget(QWidget):
         self.interactor.GetRenderWindow().PointSmoothingOn()
         self.interactor.GetRenderWindow().LineSmoothingOn()
 
-        self.interactor.Initialize()
-        self.interactor.Start()
+        layout = self.layout()
+        if layout is None:
+            layout = QHBoxLayout(self)
+            layout.setContentsMargins(0, 0, 0, 0)
+            layout.setSpacing(0)
+        layout.addWidget(self.interactor)            
 
+        self.interactor.Initialize()
+        self.interactor.Start()       
+    
     def MakeAxesActor(self):
         axes = vtk.vtkAxesActor()
         # axes.SetShaftTypeToCylinder()

@@ -4,8 +4,7 @@ import sys
 from PySide6 import QtWidgets
 from PySide6.QtSql import QSqlDatabase, QSqlQuery, QSqlTableModel
 
-from i3viewer.i3mainWindow import \
-    Ui_mainWindow  # Import the generated UI class
+from i3viewer.i3mainWindow import Ui_mainWindow  # Import the generated UI class
 
 
 class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
@@ -38,7 +37,6 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         self.actionRight.triggered.connect(self.vtkWidget.OnRightView)
         self.actionIso.triggered.connect(self.vtkWidget.OnIsometricView)
         self.actionFit.triggered.connect(self.vtkWidget.OnFitView)
-        self.tabWidget.currentChanged.connect(self.on_tab_changed)
 
     def on_open_file(self):
         """Handle the 'Open File' action for .xyz files."""
@@ -136,17 +134,6 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
     def on_exit(self):
         """Handle the 'Exit' action."""
         self.close()
-
-    def on_tab_changed(self, index):
-        """Handle tab change events."""
-        if index == 0:  # First tab (VTK widget)
-            self.refresh_vtk_widget()
-
-    def refresh_vtk_widget(self):
-        """Refresh the VTK widget to fix rendering issues."""
-        # Force the VTK render window to update
-        self.vtkWidget.resize(self.splitter.size())
-
 
 def main():
     app = QtWidgets.QApplication(sys.argv)
