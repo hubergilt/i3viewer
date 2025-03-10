@@ -11,6 +11,7 @@ poetry run pyinstaller --clean --onefile --name=3dviewer.exe --target-arch=64 ^
     --distpath=dist-windows ^
     --workpath=build-windows ^
     --specpath=. ^
+    --noconsole ^
     i3viewer/i3main.py
 
 echo.
