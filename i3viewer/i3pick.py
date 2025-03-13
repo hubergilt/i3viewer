@@ -10,8 +10,11 @@ class NonModalDialog(QDialog, Ui_Dialog):
     def __init__(self, polyline_id, num_points, length, points):
         super().__init__()
         self.setupUi(self)  # Set up the UI from the generated class
-        self.setWindowTitle("Non-Modal Dialog - Polyline Attributes")
+        self.setWindowTitle("i3Dviewer - Polyline Attributes")
 
+        # Ensure the dialog stays on top of the main window
+        self.setWindowFlags(self.windowFlags() | Qt.WindowStaysOnTopHint)
+    
         # Make all QLineEdit fields read-only and right-aligned
         self.lineEdit.setReadOnly(True)  # Selected Polyline ID
         self.lineEdit.setAlignment(Qt.AlignRight)

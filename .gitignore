@@ -1,4 +1,6 @@
+build-windows
 build
+dist-windows
 dist
 i3viewer.geany
 run*.sh

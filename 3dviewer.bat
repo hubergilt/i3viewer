@@ -10,6 +10,7 @@ poetry run pyinstaller --clean --onefile --name=3dviewer.exe --target-arch=64 ^
     --hidden-import=vtkmodules.util.execution_model ^
     --distpath=dist-windows ^
     --workpath=build-windows ^
+    --hidden-import=PySide6 ^
     --specpath=. ^
     --noconsole ^
     i3viewer/i3main.py

@@ -13,7 +13,7 @@ SOURCE_SCRIPT := i3viewer/i3main.py
 DIST_DIR := dist
 BUILD_DIR := build
 SPEC_FILE := 3dviewer.spec
-SPEC_EXE := 3dviewer.win.spec
+SPEC_EXE := 3dviewer.exe.spec
 SPEC_ELF := 3dviewer.elf.spec
 
 # Hidden imports for VTK modules
@@ -35,6 +35,8 @@ export DLLTOOL
 # Default target: run on Linux
 all:
 	poetry run i3viewer
+wine:
+	wine poetry run i3viewer
 
 # Build using PyInstaller with cross-compilation
 build:
