@@ -8,7 +8,7 @@ from PySide6.QtWidgets import QHBoxLayout
 from vtk import vtkActor
 
 from i3viewer.i3model import i3model
-
+from i3viewer.i3pick import NonModalDialog as Dialog
 
 class i3vtkWidget(QWidget):
     def __init__(self, parent=None):
@@ -17,8 +17,10 @@ class i3vtkWidget(QWidget):
         self.renderer = None
         self.interactor = None
         self.model = None
-        self.actor = None
+        self.actors = None
         self.TrihedronPos = 1
+        self.selected_actor = None
+        self.dialog = None
         
         if self.Parent == None:
             self.resize(500, 500)
@@ -27,6 +29,99 @@ class i3vtkWidget(QWidget):
             
         self.ShowEdges = False
         self.SetupWnd()
+
+    def import_file(self, file_path):
+        if self.actors:
+            for actor in self.actors:
+                self.RemoveActor(actor)        
+        self.model = i3model(file_path)
+        self.actors = self.model.format_data()
+        for actor in self.actors:
+            self.AddActor(actor)
+        self.SetRepresentation(2)  # Surface with edges
+
+    def get_model(self):
+        if self.model:
+            return self.model
+
+    def calculate_polyline_length(self, polyline):
+        """Calculates the total length of a polyline."""
+        length = 0.0
+        for i in range(1, len(polyline)):
+            x1, y1, z1 = polyline[i - 1]
+            x2, y2, z2 = polyline[i]
+            length += ((x2 - x1)**2 + (y2 - y1)**2 + (z2 - z1)**2) ** 0.5
+        return round(length, 3)
+
+    def on_pick(self, obj, event):
+        click_pos = self.interactor.GetEventPosition()
+        self.picker.Pick(click_pos[0], click_pos[1], 0, self.renderer)
+        actor = self.picker.GetActor()
+
+        if actor:
+            if self.selected_actor == actor:
+                # Deselect the currently selected polyline
+                original_color = self.model.colors[actor.polyline_id]
+                actor.GetProperty().SetColor(original_color)
+                actor.GetProperty().SetLineWidth(2.0)
+                self.selected_actor = None
+                if self.dialog:
+                    self.dialog.reset_dialog()                
+                #print("Polyline deselected.")
+            else:
+                # Deselect previously selected polyline (if any)
+                if self.selected_actor:
+                    original_color = self.model.colors[self.selected_actor.polyline_id]
+                    self.selected_actor.GetProperty().SetColor(original_color)
+                    self.selected_actor.GetProperty().SetLineWidth(2.0)
+
+                # Select new polyline
+                actor.GetProperty().SetColor(1, 1, 0)  # Yellow color
+                actor.GetProperty().SetLineWidth(5.0)
+                self.selected_actor = actor
+
+                # Display polyline information
+                number_points = len(self.model.polylines[actor.polyline_id])
+                polyline_length = self.calculate_polyline_length(self.model.polylines[actor.polyline_id])
+                points = self.model.polylines[actor.polyline_id]
+
+                polyline_id = actor.polyline_id
+                num_points = number_points
+                length = polyline_length
+                points = self.model.polylines[actor.polyline_id]
+
+                # Create and show the non-modal dialog
+                if self.dialog is None:
+                    self.dialog = Dialog(polyline_id, num_points, length, points)
+                    # Connect the dialog's custom signal to a slot in MainWindow
+                    self.dialog.dialog_closed.connect(self.handle_dialog_closed)
+                    self.dialog.show()  # Use show() to make it non-modal
+                
+                self.dialog.reset_dialog()
+                self.dialog.update_dialog(polyline_id, num_points, length, points)                                        
+        else:
+            # If no polyline is picked, deselect any currently selected one
+            if self.selected_actor:
+                original_color = self.model.colors[self.selected_actor.polyline_id]
+                self.selected_actor.GetProperty().SetColor(original_color)
+                self.selected_actor.GetProperty().SetLineWidth(2.0)
+                self.selected_actor = None
+                if self.dialog:
+                    self.dialog.reset_dialog()
+                #print("No polyline selected. Previous selection cleared.")
+
+        self.UpdateView()
+
+    def handle_dialog_closed(self):
+        """Handle the dialog_closed signal to clean up the dialog reference."""
+        self.dialog = None  # Set the dialog reference to None
+        #print("Dialog closed and reference cleaned up.")
+
+    def closeEvent(self, event):
+        """Override closeEvent to close the dialog when the application is closed."""
+        if self.dialog is not None:
+            self.dialog.close()  # Close the dialog
+        event.accept()  # Accept the close event
 
     def SetupWnd(self):
         self.SetupRenderer()
@@ -51,7 +146,15 @@ class i3vtkWidget(QWidget):
             layout = QHBoxLayout(self)
             layout.setContentsMargins(0, 0, 0, 0)
             layout.setSpacing(0)
-        layout.addWidget(self.interactor)            
+        layout.addWidget(self.interactor)
+        
+        # Create picker
+        self.picker = vtk.vtkCellPicker()
+        self.picker.SetTolerance(0.01)
+        self.interactor.SetPicker(self.picker)
+        
+        # Attach the picker event to the interactor
+        self.interactor.AddObserver("LeftButtonPressEvent", self.on_pick)                  
 
         self.interactor.Initialize()
         self.interactor.Start()       
@@ -233,18 +336,6 @@ class i3vtkWidget(QWidget):
         self.renderer.ResetCameraClippingRange()
         self.ResetCamera()
         self.UpdateView()
-
-    def import_file(self, file_path):
-        if self.actor is not None:
-            self.RemoveActor(self.actor)
-        self.model = i3model(file_path)
-        self.actor = self.model.format_data()
-        self.AddActor(self.actor)
-        self.SetRepresentation(2)  # Surface with edges
-
-    def get_model(self):
-        if self.model:
-            return self.model
 
 if __name__ == "__main__":
     app = QApplication.instance()  # Check for existing instance

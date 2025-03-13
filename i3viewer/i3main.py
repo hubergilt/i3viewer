@@ -128,12 +128,37 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             QSqlDatabase.removeDatabase(self.db_path)
 
     def on_help(self):
+        
+        from i3viewer.i3pick import NonModalDialog as Dialog
+        
         """Handle the 'Help' action."""
+        # Example data for the polyline
+        polyline_id = "Polyline-123"
+        num_points = 4
+        length = 12.34
+        points = [
+            (1.234567, 2.345678, 3.45),  # Longitude, Latitude, Altitude
+            (4.567890, 5.678901, 6.78),
+            (7.890123, 8.901234, 9.01),
+            (10.123456, 11.234567, 12.34)
+        ]
+
+
+        # Create and show the non-modal dialog
+        self.dialog = Dialog(polyline_id, num_points, length, points)
+        self.dialog.show()  # Use show() to make it non-modal
+   
         print("Help action triggered")
 
     def on_exit(self):
         """Handle the 'Exit' action."""
         self.close()
+        
+    def closeEvent(self, event):
+        """Override closeEvent to close the dialog when the application is closed."""
+        if self.vtkWidget is not None:
+            self.vtkWidget.close()  # Close the dialog
+        event.accept()  # Accept the close event        
 
 def main():
     app = QtWidgets.QApplication(sys.argv)
