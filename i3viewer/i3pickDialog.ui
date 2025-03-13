@@ -89,6 +89,11 @@
        <string>Altitude</string>
       </property>
      </column>
+     <column>
+      <property name="text">
+       <string>Gradient</string>
+      </property>
+     </column>
     </widget>
    </item>
   </layout>

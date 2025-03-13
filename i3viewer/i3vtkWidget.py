@@ -48,8 +48,8 @@ class i3vtkWidget(QWidget):
         """Calculates the total length of a polyline."""
         length = 0.0
         for i in range(1, len(polyline)):
-            x1, y1, z1 = polyline[i - 1]
-            x2, y2, z2 = polyline[i]
+            x1, y1, z1, _ = polyline[i - 1]
+            x2, y2, z2, _ = polyline[i]
             length += ((x2 - x1)**2 + (y2 - y1)**2 + (z2 - z1)**2) ** 0.5
         return round(length, 3)
 
@@ -81,24 +81,20 @@ class i3vtkWidget(QWidget):
                 self.selected_actor = actor
 
                 # Display polyline information
-                number_points = len(self.model.polylines[actor.polyline_id])
-                polyline_length = self.calculate_polyline_length(self.model.polylines[actor.polyline_id])
-                points = self.model.polylines[actor.polyline_id]
-
                 polyline_id = actor.polyline_id
-                num_points = number_points
-                length = polyline_length
-                points = self.model.polylines[actor.polyline_id]
+                points = self.model.polylines[polyline_id]
+                num_points = len(points)                
+                polyline_length = self.calculate_polyline_length(points)
 
                 # Create and show the non-modal dialog
                 if self.dialog is None:
-                    self.dialog = Dialog(polyline_id, num_points, length, points)
+                    self.dialog = Dialog(polyline_id, num_points, polyline_length, points)
                     # Connect the dialog's custom signal to a slot in MainWindow
                     self.dialog.dialog_closed.connect(self.handle_dialog_closed)
                     self.dialog.show()  # Use show() to make it non-modal
                 
                 self.dialog.reset_dialog()
-                self.dialog.update_dialog(polyline_id, num_points, length, points)                                        
+                self.dialog.update_dialog(polyline_id, num_points, polyline_length, points)                                        
         else:
             # If no polyline is picked, deselect any currently selected one
             if self.selected_actor:

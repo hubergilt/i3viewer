@@ -3,6 +3,7 @@ import sqlite3
 
 import vtk
 from PySide6.QtGui import QStandardItem, QStandardItemModel
+import math
 
 
 class i3model:
@@ -19,8 +20,9 @@ class i3model:
         self.create_vtk_polylines()
         return self.actors      
 
+
     def read_xyz_file(self):
-        """Reads the XYZ file and stores polylines."""
+        """Reads the XYZ file and stores polylines with gradient values (multiplied by 100)."""
         self.polylines = {}
         polyline_id = 0
         self.polylines[polyline_id] = []
@@ -37,14 +39,24 @@ class i3model:
                         x, y, z = map(
                             lambda v: round(float(v), 3), parts
                         )  # Round to 3 decimals
-                        self.polylines[polyline_id].append((x, y, z))
 
-        self.polylines = {
-            k: v for k, v in self.polylines.items() if v
-        }  # Remove empty polylines
+                        # Compute gradient
+                        if not self.polylines[polyline_id]:  # First point in polyline
+                            gradient = 0.0
+                        else:
+                            prev_x, prev_y, prev_z, _ = self.polylines[polyline_id][-1]
+                            delta_z = z - prev_z
+                            distance = math.sqrt((x - prev_x) ** 2 + (y - prev_y) ** 2)
+                            gradient = (delta_z / distance) * 100 if distance != 0 else 0.0  # Multiply by 100
+
+                        # Append the point with gradient
+                        self.polylines[polyline_id].append((x, y, z, round(gradient, 3)))  # Round gradient to 3 decimals
+
+        # Remove empty polylines
+        self.polylines = {k: v for k, v in self.polylines.items() if v}
 
     def create_vtk_polylines(self):
-        """Creates separate VTK actors for each polyline."""
+        """Creates separate VTK actors for each polyline, using the modified self.polylines dictionary."""
         self.actors = []
         
         for polyline_id, vertices in self.polylines.items():
@@ -57,19 +69,23 @@ class i3model:
             color = [random.randint(0, 255) / 255.0 for _ in range(3)]
             self.colors[polyline_id] = color
             
-            for i, (x, y, z) in enumerate(vertices):
+            # Iterate over vertices (x, y, z, gradient)
+            for i, (x, y, z, _) in enumerate(vertices):
                 point_id = points.InsertNextPoint(x, y, z)
                 polyline.GetPointIds().SetId(i, point_id)
             
             cells.InsertNextCell(polyline)
             
+            # Create poly data
             poly_data = vtk.vtkPolyData()
             poly_data.SetPoints(points)
             poly_data.SetLines(cells)
             
+            # Create mapper
             mapper = vtk.vtkPolyDataMapper()
             mapper.SetInputData(poly_data)
             
+            # Create actor
             actor = vtk.vtkActor()
             actor.SetMapper(mapper)
             actor.GetProperty().SetColor(color)
@@ -87,7 +103,7 @@ class i3model:
             self.polylines.items(), start=1
         ):
             polyline_item = QStandardItem(f"Polyline {polyline_idx}")
-            for idx, (x, y, z) in enumerate(points, start=1):
+            for idx, (x, y, z, _) in enumerate(points, start=1):
                 point_item = QStandardItem(
                     f"Point {idx} (X={x:.3f}, Y={y:.3f}, Z={z:.3f})"
                 )

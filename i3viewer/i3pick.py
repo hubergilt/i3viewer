@@ -41,8 +41,8 @@ class NonModalDialog(QDialog, Ui_Dialog):
         self.tableWidget.setColumnCount(5)  # Id, Longitude, Latitude, Altitude, Gradient
         self.tableWidget.setHorizontalHeaderLabels(["Id", "Longitude", "Latitude", "Altitude", "Gradient"])
 
-        # Calculate and populate the gradient column
-        for row, (x, y, z) in enumerate(points):
+        # Populate the Id, Longitude, Latitude, Altitude, and Gradient column
+        for row, (x, y, z, g) in enumerate(points):
             # Create QTableWidgetItem for each cell and set text alignment to right
             id_item = QTableWidgetItem(str(polyline_id))  # Id (integer as string)
             id_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
@@ -59,18 +59,10 @@ class NonModalDialog(QDialog, Ui_Dialog):
             alt_item = QTableWidgetItem(f"{z:.3f}")  # Altitude (3 decimal places)
             alt_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
             self.tableWidget.setItem(row, 3, alt_item)
-
-            # Calculate gradient
-            if row == 0:
-                gradient = 0.0  # Gradient for the first point is 0
-            else:
-                z_prev = points[row - 1][2]  # Z value of the previous point
-                gradient = 100 * (z - z_prev) / float(self.lineEdit_3.text())  # Gradient formula
-
-            gradient_item = QTableWidgetItem(f"{gradient:.3f}")  # Gradient (3 decimal places)
-            gradient_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            self.tableWidget.setItem(row, 4, gradient_item)
-
+            
+            gra_item = QTableWidgetItem(f"{g:.3f}")  # Gradient (3 decimal places)
+            gra_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            self.tableWidget.setItem(row, 4, gra_item)            
 
     def reset_dialog(self):
         """Clear all QLineEdit fields and reset the QTableWidget."""
