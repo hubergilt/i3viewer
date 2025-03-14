@@ -4,7 +4,8 @@ import sys
 from PySide6 import QtWidgets
 from PySide6.QtSql import QSqlDatabase, QSqlQuery, QSqlTableModel
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QStyledItemDelegate
+from PySide6.QtWidgets import QStyledItemDelegate, QMessageBox
+from PySide6.QtGui import QStandardItem, QStandardItemModel
 
 from i3viewer.i3mainWindow import Ui_mainWindow  # Import the generated UI class
 
@@ -22,8 +23,9 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         self.connect_actions()
 
         self.model = None
+        self.db_file = None
+        self.db_path = None        
         self.db = None
-        self.db_path = None
 
     def connect_actions(self):
         """Connect UI actions to their respective functions."""
@@ -48,51 +50,95 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         # Get user's home directory cross-platform
         home_dir = os.path.expanduser("~")
         file_dialog.setDirectory(home_dir)
-        file_dialog.setNameFilter("XYZ Files (*.xyz)")
+        file_dialog.setNameFilter("XYZ Files (*.xyz);;SQLite Files (*.db)")
         file_dialog.setFileMode(QtWidgets.QFileDialog.ExistingFile)
 
         if file_dialog.exec():
             selected_files = file_dialog.selectedFiles()
             if selected_files:
-                file_path = selected_files[0]
-                if file_path.endswith(".xyz"):
-                    self.vtkWidget.import_file(file_path)
-
-                    file_name = os.path.basename(file_path)
-                    self.setup_tree_view(file_path, file_name)
-
-                    base_name, _ = os.path.splitext(file_path)
-                    self.db_path = base_name + ".db"
-
-                    self.statusbar.showMessage(
-                        f"Imported data from the file {file_path}."
-                    )
-                    self.release_tableview()
+                self.file_path = selected_files[0]
+                if self.file_path.endswith(".xyz"):
+                    self.open_xyz_file()                    
+                elif self.file_path.endswith(".db"):
+                    self.open_db_file()                 
                 else:
-                    QtWidgets.QMessageBox.warning(
-                        self, "Invalid File", "Please select a valid .xyz file."
+                    QMessageBox.warning(
+                        self, "Invalid File", "Please select a valid file."
                     )
 
-    def setup_tree_view(self, file_path, file_name):
-        model = self.vtkWidget.get_model()
-        if model:
-            self.treeView.setModel(model.format_tree(file_path, file_name))
+    
+    def open_xyz_file(self):
+        base_name, _ = os.path.splitext(self.file_path)
+        self.db_path = base_name + ".db"        
+        
+        self.vtkWidget.import_file(self.file_path)
+        
+        self.treeview_setup()
 
+        self.statusbar.showMessage(
+            f"Imported data from the file {self.file_path}."
+        )
+        self.tableview_release()
+        
+    def open_db_file(self):        
+        self.db_path = self.file_path
+        
+        self.vtkWidget.import_file(self.db_path, False)
+        
+        self.treeview_setup()
+
+        self.statusbar.showMessage(
+            f"Imported data from the file {self.db_path}."
+        )
+        self.tableview_release()  
+        self.tableview_setup()
+            
+    def treeview_setup(self):
+        model = self.vtkWidget.model
+        if model:
+            polyline_count = len(model.polylines)
+            tree_model = QStandardItemModel()
+            root_item = QStandardItem(f"{self.file_path} ({polyline_count} polylines)")
+
+            for polyline_idx, (polyline_id, points) in enumerate(
+                model.polylines.items(), start=1
+            ):
+                polyline_item = QStandardItem(f"Polyline {polyline_idx}")
+                for idx, (x, y, z, _) in enumerate(points, start=1):
+                    point_item = QStandardItem(
+                        f"Point {idx} (X={x:.3f}, Y={y:.3f}, Z={z:.3f})"
+                    )
+                    polyline_item.appendRow(point_item)
+                root_item.appendRow(polyline_item)
+
+            tree_model.appendRow(root_item)
+            tree_model.setHorizontalHeaderLabels([self.file_path])
+            self.treeView.setModel(tree_model)
+        
     def on_save(self):
         """Handle the 'Save' action."""
-        model = self.vtkWidget.get_model()
+        model = self.vtkWidget.model
         if model:
-            model.save_to_database(self.db_path)
-            self.setup_table_view()
+            if os.path.exists(self.db_path):
+                reply = QMessageBox.question(self, 'Message',
+                                             f"The Database File Already Exists:\n{self.db_path}\nDo you want to overwrite the existing file?",
+                                             QMessageBox.Yes | QMessageBox.No, QMessageBox.No) # Default is No
+
+                if reply == QMessageBox.Yes:
+                    model.polylines_save_database(self.db_path)
+                    self.tableview_setup()
+            else:
+                model.polylines_save_database(self.db_path)
+                self.tableview_setup()                
         else:
-            QtWidgets.QMessageBox.warning(
+            QMessageBox.warning(
                 self,
                 "Invalid File",
                 "Please open a valid .xyz file before save into database.",
             )
 
 
-    def setup_table_view(self):
+    def tableview_setup(self):
         if self.db is None:
             self.db = QSqlDatabase.addDatabase("QSQLITE")
 
@@ -100,6 +146,11 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             self.db.setDatabaseName(self.db_path)
 
         if not self.db.open():
+            QMessageBox.warning(
+                self,
+                "Invalid File",
+                "Error: Unable to open database.",
+            )            
             print("Error: Unable to open database")
             return -1
 
@@ -136,12 +187,12 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         # Auto-adjust column widths to content
         self.tableView.resizeColumnsToContents()
             
-        total_rows = self.get_row_count()
+        total_rows = self.tableview_row_count()
         self.statusbar.showMessage(
             f"Total rows: {total_rows} saved in the database {self.db_path}."
         )
 
-    def get_row_count(self):
+    def tableview_row_count(self):
         query = QSqlQuery(self.db)
         query.exec("SELECT COUNT(*) FROM polylines")
         if query.next():
@@ -149,7 +200,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             return row_count
         return -1
 
-    def release_tableview(self):
+    def tableview_release(self):
         if self.model:
             self.tableView.setModel(None)
             self.model = None
@@ -158,26 +209,6 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             QSqlDatabase.removeDatabase(self.db_path)
 
     def on_help(self):
-        
-        from i3viewer.i3pick import NonModalDialog as Dialog
-        
-        """Handle the 'Help' action."""
-        # Example data for the polyline
-        polyline_id = "Polyline-123"
-        num_points = 4
-        length = 12.34
-        points = [
-            (1.234567, 2.345678, 3.45),  # Longitude, Latitude, Altitude
-            (4.567890, 5.678901, 6.78),
-            (7.890123, 8.901234, 9.01),
-            (10.123456, 11.234567, 12.34)
-        ]
-
-
-        # Create and show the non-modal dialog
-        self.dialog = Dialog(polyline_id, num_points, length, points)
-        self.dialog.show()  # Use show() to make it non-modal
-   
         print("Help action triggered")
 
     def on_exit(self):

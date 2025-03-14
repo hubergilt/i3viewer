@@ -5,7 +5,6 @@ import vtk
 from PySide6.QtGui import QStandardItem, QStandardItemModel
 import math
 
-
 class i3model:
     def __init__(self, file_path):
         self.file_path = file_path
@@ -14,14 +13,16 @@ class i3model:
         self.actors = []
         self.colors = {}
 
-    def format_data(self):
+    def polylines_format_actors(self, fromFile=True):
         """Executes the full pipeline."""
-        self.read_xyz_file()
-        self.create_vtk_polylines()
-        return self.actors      
+        if fromFile:
+            self.polylines_read_file()
+        else:
+            self.polylines_read_table()
+        self.polylines_create_actors()
+        return self.actors
 
-
-    def read_xyz_file(self):
+    def polylines_read_file(self):
         """Reads the XYZ file and stores polylines with gradient values (multiplied by 100)."""
         self.polylines = {}
         polyline_id = 0
@@ -55,7 +56,24 @@ class i3model:
         # Remove empty polylines
         self.polylines = {k: v for k, v in self.polylines.items() if v}
 
-    def create_vtk_polylines(self):
+    
+    def polylines_read_table(self):
+        """Fetch polylines grouped by polyline_id from the SQLite database."""
+        conn = sqlite3.connect(self.file_path)
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT polyline_id, X, Y, Z, gradient FROM polylines ORDER BY polyline_id, point_id")
+        data = cursor.fetchall()
+        
+        conn.close()
+
+        self.polylines = {}
+        for polyline_id, x, y, z, g in data:
+            if polyline_id not in self.polylines:
+                self.polylines[polyline_id] = []
+            self.polylines[polyline_id].append((x, y, z, g))
+        
+    def polylines_create_actors(self):
         """Creates separate VTK actors for each polyline, using the modified self.polylines dictionary."""
         self.actors = []
         
@@ -93,28 +111,8 @@ class i3model:
             actor.polyline_id = polyline_id
             
             self.actors.append(actor)
-
-    def format_tree(self, file_path, file_name):
-        polyline_count = len(self.polylines)
-        tree_model = QStandardItemModel()
-        root_item = QStandardItem(f"{file_name} ({polyline_count} polylines)")
-
-        for polyline_idx, (polyline_id, points) in enumerate(
-            self.polylines.items(), start=1
-        ):
-            polyline_item = QStandardItem(f"Polyline {polyline_idx}")
-            for idx, (x, y, z, _) in enumerate(points, start=1):
-                point_item = QStandardItem(
-                    f"Point {idx} (X={x:.3f}, Y={y:.3f}, Z={z:.3f})"
-                )
-                polyline_item.appendRow(point_item)
-            root_item.appendRow(polyline_item)
-
-        tree_model.appendRow(root_item)
-        tree_model.setHorizontalHeaderLabels([file_path])
-        return tree_model
         
-    def save_to_database(self, db_path):
+    def polylines_save_database(self, db_path):
         """Saves the polylines data into the SQLite database."""
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
@@ -156,16 +154,3 @@ class i3model:
 
         conn.commit()
         conn.close()
-        
-
-    def run(self):
-        """Executes the full pipeline."""
-        self.read_xyz_file()
-        self.save_to_database()
-        self.create_vtk_polylines()
-        self.visualize_polylines()
-
-
-if __name__ == "__main__":
-    model = i3model("data.xyz")
-    model.run()

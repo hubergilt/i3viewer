@@ -30,19 +30,15 @@ class i3vtkWidget(QWidget):
         self.ShowEdges = False
         self.SetupWnd()
 
-    def import_file(self, file_path):
+    def import_file(self, file_path, fromFile=True):
         if self.actors:
             for actor in self.actors:
                 self.RemoveActor(actor)
         self.model = i3model(file_path)
-        self.actors = self.model.format_data()
+        self.actors = self.model.polylines_format_actors(fromFile)
         for actor in self.actors:
             self.AddActor(actor)
         self.SetRepresentation(2)  # Surface with edges
-
-    def get_model(self):
-        if self.model:
-            return self.model
 
     def calculate_polyline_length(self, polyline):
         """Calculates the total length of a polyline."""
@@ -332,12 +328,3 @@ class i3vtkWidget(QWidget):
         self.renderer.ResetCameraClippingRange()
         self.ResetCamera()
         self.UpdateView()
-
-if __name__ == "__main__":
-    app = QApplication.instance()  # Check for existing instance
-    if app is None:  # Create only if it doesn't exist
-        app = QApplication(sys.argv)
-    window = vtkViewer()
-    window.setWindowTitle("QWidget's QVTKRenderWindowInteractor")
-    window.show()
-    sys.exit(app.exec())
