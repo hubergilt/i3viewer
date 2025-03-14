@@ -21,19 +21,19 @@ class i3vtkWidget(QWidget):
         self.TrihedronPos = 1
         self.selected_actor = None
         self.dialog = None
-        
+
         if self.Parent == None:
             self.resize(500, 500)
         else:
             self.resize(self.Parent.size())
-            
+
         self.ShowEdges = False
         self.SetupWnd()
 
     def import_file(self, file_path):
         if self.actors:
             for actor in self.actors:
-                self.RemoveActor(actor)        
+                self.RemoveActor(actor)
         self.model = i3model(file_path)
         self.actors = self.model.format_data()
         for actor in self.actors:
@@ -66,7 +66,7 @@ class i3vtkWidget(QWidget):
                 actor.GetProperty().SetLineWidth(2.0)
                 self.selected_actor = None
                 if self.dialog:
-                    self.dialog.reset_dialog()                
+                    self.dialog.reset_dialog()
                 #print("Polyline deselected.")
             else:
                 # Deselect previously selected polyline (if any)
@@ -83,7 +83,7 @@ class i3vtkWidget(QWidget):
                 # Display polyline information
                 polyline_id = actor.polyline_id
                 points = self.model.polylines[polyline_id]
-                num_points = len(points)                
+                num_points = len(points)
                 polyline_length = self.calculate_polyline_length(points)
 
                 # Create and show the non-modal dialog
@@ -91,10 +91,10 @@ class i3vtkWidget(QWidget):
                     self.dialog = Dialog(polyline_id, num_points, polyline_length, points)
                     # Connect the dialog's custom signal to a slot in MainWindow
                     self.dialog.dialog_closed.connect(self.handle_dialog_closed)
-                    self.dialog.show()  # Use show() to make it non-modal
                 
+                self.dialog.show()  # Use show() to make it non-modal
                 self.dialog.reset_dialog()
-                self.dialog.update_dialog(polyline_id, num_points, polyline_length, points)                                        
+                self.dialog.update_dialog(polyline_id, num_points, polyline_length, points)
         else:
             # If no polyline is picked, deselect any currently selected one
             if self.selected_actor:
@@ -143,18 +143,18 @@ class i3vtkWidget(QWidget):
             layout.setContentsMargins(0, 0, 0, 0)
             layout.setSpacing(0)
         layout.addWidget(self.interactor)
-        
+
         # Create picker
         self.picker = vtk.vtkCellPicker()
         self.picker.SetTolerance(0.01)
         self.interactor.SetPicker(self.picker)
-        
+
         # Attach the picker event to the interactor
-        self.interactor.AddObserver("LeftButtonPressEvent", self.on_pick)                  
+        self.interactor.AddObserver("LeftButtonPressEvent", self.on_pick)
 
         self.interactor.Initialize()
-        self.interactor.Start()       
-    
+        self.interactor.Start()
+
     def MakeAxesActor(self):
         axes = vtk.vtkAxesActor()
         # axes.SetShaftTypeToCylinder()

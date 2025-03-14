@@ -3,6 +3,8 @@ import sys
 
 from PySide6 import QtWidgets
 from PySide6.QtSql import QSqlDatabase, QSqlQuery, QSqlTableModel
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QStyledItemDelegate
 
 from i3viewer.i3mainWindow import Ui_mainWindow  # Import the generated UI class
 
@@ -89,6 +91,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
                 "Please open a valid .xyz file before save into database.",
             )
 
+
     def setup_table_view(self):
         if self.db is None:
             self.db = QSqlDatabase.addDatabase("QSQLITE")
@@ -105,7 +108,34 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         self.model.select()
 
         self.tableView.setModel(self.model)
+        
+        class FloatRightAlignDelegate(QStyledItemDelegate):
+            def initStyleOption(self, option, index):
+                super().initStyleOption(option, index)
+                option.displayAlignment = Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+            
+            def displayText(self, value, locale):
+                # Try to convert the value to float
+                try:
+                    float_value = float(value)
+                    # Check if it's actually an integer value
+                    if float_value.is_integer():
+                        return str(int(float_value))  # Display as integer without decimal places
+                    else:
+                        # Format with 3 decimal places for actual float values
+                        return f"{float_value:.3f}"
+                except (ValueError, TypeError):
+                    # If conversion fails, return the original value
+                    return super().displayText(value, locale)
+                    
+        # Set right alignment for all cells in the table
+        column_count = self.model.columnCount()
+        for column in range(column_count):
+            self.tableView.setItemDelegateForColumn(column, FloatRightAlignDelegate(self.tableView))
 
+        # Auto-adjust column widths to content
+        self.tableView.resizeColumnsToContents()
+            
         total_rows = self.get_row_count()
         self.statusbar.showMessage(
             f"Total rows: {total_rows} saved in the database {self.db_path}."

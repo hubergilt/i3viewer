@@ -109,7 +109,7 @@ class Ui_Dialog(object):
         self.label_4.setText(QCoreApplication.translate("Dialog", u"Selected Polyline attributes:", None))
         self.label.setText(QCoreApplication.translate("Dialog", u"Selected Polyline ID:", None))
         self.label_3.setText(QCoreApplication.translate("Dialog", u"Length of Polyline:   ", None))
-        self.label_2.setText(QCoreApplication.translate("Dialog", u"Numbers of Points:  ", None))
+        self.label_2.setText(QCoreApplication.translate("Dialog", u"Number of Points:    ", None))
         ___qtablewidgetitem = self.tableWidget.horizontalHeaderItem(0)
         ___qtablewidgetitem.setText(QCoreApplication.translate("Dialog", u"Id", None));
         ___qtablewidgetitem1 = self.tableWidget.horizontalHeaderItem(1)

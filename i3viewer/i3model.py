@@ -127,6 +127,7 @@ class i3model:
                 X REAL,
                 Y REAL,
                 Z REAL,
+                "gradient" REAL,
                 "velocidad máxima" REAL,
                 "tonelaje de material por carretera" REAL,
                 "resistencia a la rodadura" REAL,
@@ -146,10 +147,10 @@ class i3model:
 
         for polyline_id, points in self.polylines.items():
             point_id = 1
-            for x, y, z in points:
+            for x, y, z, g in points:
                 cursor.execute(
-                    "INSERT INTO polylines (polyline_id, point_id, X, Y, Z) VALUES (?, ?, ?, ?, ?)",
-                    (polyline_id + 1, point_id, x, y, z),
+                    "INSERT INTO polylines (polyline_id, point_id, X, Y, Z, gradient) VALUES (?, ?, ?, ?, ?, ?)",
+                    (polyline_id + 1, point_id, x, y, z, g),
                 )
                 point_id += 1
 

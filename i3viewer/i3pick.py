@@ -10,7 +10,7 @@ class NonModalDialog(QDialog, Ui_Dialog):
     def __init__(self, polyline_id, num_points, length, points):
         super().__init__()
         self.setupUi(self)  # Set up the UI from the generated class
-        self.setWindowTitle("i3Dviewer - Polyline Attributes")
+        self.setWindowTitle("i3dViewer - Polyline Attributes")
 
         # Ensure the dialog stays on top of the main window
         self.setWindowFlags(self.windowFlags() | Qt.WindowStaysOnTopHint)
@@ -62,7 +62,10 @@ class NonModalDialog(QDialog, Ui_Dialog):
             
             gra_item = QTableWidgetItem(f"{g:.3f}")  # Gradient (3 decimal places)
             gra_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            self.tableWidget.setItem(row, 4, gra_item)            
+            self.tableWidget.setItem(row, 4, gra_item)
+
+        # Adjust column widths to fit content
+        self.tableWidget.resizeColumnsToContents()                       
 
     def reset_dialog(self):
         """Clear all QLineEdit fields and reset the QTableWidget."""
