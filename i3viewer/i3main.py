@@ -123,8 +123,8 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         if model:
             if os.path.exists(self.db_path):
                 reply = QMessageBox.question(self, 'Message',
-                                             f"The Database File Already Exists:\n{self.db_path}\nDo you want to overwrite the existing file?",
-                                             QMessageBox.Yes | QMessageBox.No, QMessageBox.No) # Default is No
+                        f"The Database File Already Exists:\n{self.db_path}\nDo you want to create an empty database\noverwriting the existing file?",
+                        QMessageBox.Yes | QMessageBox.No, QMessageBox.No) # Default is No
 
                 if reply == QMessageBox.Yes:
                     model.polylines_save_database(self.db_path)
@@ -225,7 +225,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         
     def on_tab_changed(self, index):
         """Handle tab change events."""
-        if index == 0 and self.vtkWidget:  # First tab (VTK widget)
+        if index == 0 and self.vtkWidget and self.file_path.endswith(".db"):  # First tab (VTK widget)
             self.vtkWidget.update_polyline_data()            
 
 def main():
