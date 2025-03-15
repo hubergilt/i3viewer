@@ -62,16 +62,29 @@ class i3model:
         conn = sqlite3.connect(self.file_path)
         cursor = conn.cursor()
 
-        cursor.execute("SELECT polyline_id, X, Y, Z, gradient FROM polylines ORDER BY polyline_id, point_id")
+        cursor.execute(
+            """
+            SELECT polyline_id, X, Y, Z, gradient,
+                "velocidad máxima",
+                "tonelaje de material por carretera",
+                "resistencia a la rodadura",
+                "límite máximo de velocidad",
+                "velocidad de frenado",
+                "rimpull",
+                "retardo",
+                "consumo de combustible",
+                "nombre de la ruta"
+                FROM polylines ORDER BY polyline_id, point_id
+            """)
         data = cursor.fetchall()
         
         conn.close()
 
         self.polylines = {}
-        for polyline_id, x, y, z, g in data:
+        for polyline_id, x, y, z, g, *rest in data:
             if polyline_id not in self.polylines:
                 self.polylines[polyline_id] = []
-            self.polylines[polyline_id].append((x, y, z, g))
+            self.polylines[polyline_id].append((x, y, z, g, *rest))
         
     def polylines_create_actors(self):
         """Creates separate VTK actors for each polyline, using the modified self.polylines dictionary."""
@@ -88,7 +101,7 @@ class i3model:
             self.colors[polyline_id] = color
             
             # Iterate over vertices (x, y, z, gradient)
-            for i, (x, y, z, _) in enumerate(vertices):
+            for i, (x, y, z, *_) in enumerate(vertices):
                 point_id = points.InsertNextPoint(x, y, z)
                 polyline.GetPointIds().SetId(i, point_id)
             

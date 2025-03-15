@@ -39,13 +39,17 @@ class i3vtkWidget(QWidget):
         for actor in self.actors:
             self.AddActor(actor)
         self.SetRepresentation(2)  # Surface with edges
+        
+    def update_polyline_data(self):
+        if self.model:
+            self.model.polylines_read_table()
 
     def calculate_polyline_length(self, polyline):
         """Calculates the total length of a polyline."""
         length = 0.0
         for i in range(1, len(polyline)):
-            x1, y1, z1, _ = polyline[i - 1]
-            x2, y2, z2, _ = polyline[i]
+            x1, y1, z1, *_ = polyline[i - 1]
+            x2, y2, z2, *_ = polyline[i]
             length += ((x2 - x1)**2 + (y2 - y1)**2 + (z2 - z1)**2) ** 0.5
         return round(length, 3)
 

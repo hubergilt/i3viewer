@@ -94,6 +94,51 @@
        <string>Gradient</string>
       </property>
      </column>
+     <column>
+      <property name="text">
+       <string>velocidad máxima</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>tonelaje de material por carretera</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>New Column</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>límite máximo de velocidad</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>velocidad de frenado</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>rimpull</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>retardo</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>consumo de combustible</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>nombre de la ruta</string>
+      </property>
+     </column>
     </widget>
    </item>
   </layout>

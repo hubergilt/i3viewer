@@ -82,8 +82,8 @@ class Ui_Dialog(object):
         self.verticalLayout_2.addLayout(self.verticalLayout)
 
         self.tableWidget = QTableWidget(Dialog)
-        if (self.tableWidget.columnCount() < 5):
-            self.tableWidget.setColumnCount(5)
+        if (self.tableWidget.columnCount() < 6):
+            self.tableWidget.setColumnCount(6)
         __qtablewidgetitem = QTableWidgetItem()
         self.tableWidget.setHorizontalHeaderItem(0, __qtablewidgetitem)
         __qtablewidgetitem1 = QTableWidgetItem()
@@ -94,6 +94,8 @@ class Ui_Dialog(object):
         self.tableWidget.setHorizontalHeaderItem(3, __qtablewidgetitem3)
         __qtablewidgetitem4 = QTableWidgetItem()
         self.tableWidget.setHorizontalHeaderItem(4, __qtablewidgetitem4)
+        __qtablewidgetitem5 = QTableWidgetItem()
+        self.tableWidget.setHorizontalHeaderItem(5, __qtablewidgetitem5)
         self.tableWidget.setObjectName(u"tableWidget")
 
         self.verticalLayout_2.addWidget(self.tableWidget)
@@ -120,5 +122,7 @@ class Ui_Dialog(object):
         ___qtablewidgetitem3.setText(QCoreApplication.translate("Dialog", u"Altitude", None));
         ___qtablewidgetitem4 = self.tableWidget.horizontalHeaderItem(4)
         ___qtablewidgetitem4.setText(QCoreApplication.translate("Dialog", u"Gradient", None));
+        ___qtablewidgetitem5 = self.tableWidget.horizontalHeaderItem(5)
+        ___qtablewidgetitem5.setText(QCoreApplication.translate("Dialog", u"velocidad m\u00e1xima", None));
     # retranslateUi
 

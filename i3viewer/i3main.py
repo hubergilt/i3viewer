@@ -26,6 +26,8 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         self.db_file = None
         self.db_path = None        
         self.db = None
+        
+        self.tabWidget.currentChanged.connect(self.on_tab_changed)        
 
     def connect_actions(self):
         """Connect UI actions to their respective functions."""
@@ -104,7 +106,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
                 model.polylines.items(), start=1
             ):
                 polyline_item = QStandardItem(f"Polyline {polyline_idx}")
-                for idx, (x, y, z, _) in enumerate(points, start=1):
+                for idx, (x, y, z, *_) in enumerate(points, start=1):
                     point_item = QStandardItem(
                         f"Point {idx} (X={x:.3f}, Y={y:.3f}, Z={z:.3f})"
                     )
@@ -136,7 +138,6 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
                 "Invalid File",
                 "Please open a valid .xyz file before save into database.",
             )
-
 
     def tableview_setup(self):
         if self.db is None:
@@ -209,6 +210,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             QSqlDatabase.removeDatabase(self.db_path)
 
     def on_help(self):
+        self.vtkWidget.update_polyline_data()        
         print("Help action triggered")
 
     def on_exit(self):
@@ -219,7 +221,12 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         """Override closeEvent to close the dialog when the application is closed."""
         if self.vtkWidget is not None:
             self.vtkWidget.close()  # Close the dialog
-        event.accept()  # Accept the close event        
+        event.accept()  # Accept the close event   
+        
+    def on_tab_changed(self, index):
+        """Handle tab change events."""
+        if index == 0 and self.vtkWidget:  # First tab (VTK widget)
+            self.vtkWidget.update_polyline_data()            
 
 def main():
     app = QtWidgets.QApplication(sys.argv)

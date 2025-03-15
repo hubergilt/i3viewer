@@ -54,6 +54,9 @@ runelf:
 runexe:
 	wine $(DIST_DIR)/$(TARGET_NAME).exe
 
+7zexe:
+	7z a $(DIST_DIR)/$(TARGET_NAME)-$(shell date +%Y-%m-%d).7z $(DIST_DIR)/$(TARGET_NAME).exe
+
 # Clean all build artifacts
 clean:
 	rm -rf $(DIST_DIR) $(BUILD_DIR) __pycache__
