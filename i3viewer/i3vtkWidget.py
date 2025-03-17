@@ -54,59 +54,67 @@ class i3vtkWidget(QWidget):
         return round(length, 3)
 
     def on_pick(self, obj, event):
+        """Handles picking an actor and updates selection and dialog accordingly."""
         click_pos = self.interactor.GetEventPosition()
         self.picker.Pick(click_pos[0], click_pos[1], 0, self.renderer)
         actor = self.picker.GetActor()
 
         if actor:
             if self.selected_actor == actor:
-                # Deselect the currently selected polyline
-                original_color = self.model.colors[actor.polyline_id]
-                actor.GetProperty().SetColor(original_color)
-                actor.GetProperty().SetLineWidth(2.0)
-                self.selected_actor = None
-                if self.dialog:
-                    self.dialog.reset_dialog()
-                #print("Polyline deselected.")
+                self.deselect_actor(actor)
+                self.hide_dialog()
             else:
-                # Deselect previously selected polyline (if any)
                 if self.selected_actor:
-                    original_color = self.model.colors[self.selected_actor.polyline_id]
-                    self.selected_actor.GetProperty().SetColor(original_color)
-                    self.selected_actor.GetProperty().SetLineWidth(2.0)
-
-                # Select new polyline
-                actor.GetProperty().SetColor(1, 1, 0)  # Yellow color
-                actor.GetProperty().SetLineWidth(5.0)
-                self.selected_actor = actor
-
-                # Display polyline information
-                polyline_id = actor.polyline_id
-                points = self.model.polylines[polyline_id]
-                num_points = len(points)
-                polyline_length = self.calculate_polyline_length(points)
-
-                # Create and show the non-modal dialog
-                if self.dialog is None:
-                    self.dialog = Dialog(polyline_id, num_points, polyline_length, points)
-                    # Connect the dialog's custom signal to a slot in MainWindow
-                    self.dialog.dialog_closed.connect(self.handle_dialog_closed)
-                
-                self.dialog.show()  # Use show() to make it non-modal
-                self.dialog.reset_dialog()
-                self.dialog.update_dialog(polyline_id, num_points, polyline_length, points)
+                    self.deselect_actor(self.selected_actor)
+                    self.hide_dialog()
+                self.select_actor(actor)
+                self.show_dialog(actor)
         else:
-            # If no polyline is picked, deselect any currently selected one
             if self.selected_actor:
-                original_color = self.model.colors[self.selected_actor.polyline_id]
-                self.selected_actor.GetProperty().SetColor(original_color)
-                self.selected_actor.GetProperty().SetLineWidth(2.0)
-                self.selected_actor = None
-                if self.dialog:
-                    self.dialog.reset_dialog()
-                #print("No polyline selected. Previous selection cleared.")
+                self.deselect_actor(self.selected_actor)
+                self.hide_dialog()
 
         self.UpdateView()
+
+    def select_actor(self, actor):
+        """Select a new polyline actor by changing its color and line width."""
+        if not hasattr(actor, 'polyline_id') or actor.polyline_id not in self.model.polylines:
+            return  # Ignore invalid actors
+
+        actor.GetProperty().SetColor(1, 1, 0)  # Yellow color
+        actor.GetProperty().SetLineWidth(5.0)
+        self.selected_actor = actor
+
+    def deselect_actor(self, actor):
+        """Deselect the given actor by restoring its original color and line width."""
+        if not hasattr(actor, 'polyline_id') or actor.polyline_id not in self.model.colors:
+            return  # Ignore invalid actors
+
+        original_color = self.model.colors[actor.polyline_id]
+        actor.GetProperty().SetColor(original_color)
+        actor.GetProperty().SetLineWidth(2.0)
+        self.selected_actor = None
+
+    def show_dialog(self, actor):
+        """Displays or updates the dialog with polyline information."""
+        polyline_id = actor.polyline_id
+        points = self.model.polylines[polyline_id]
+        num_points = len(points)
+        polyline_length = self.calculate_polyline_length(points)
+
+        if self.dialog is None:
+            self.dialog = Dialog(polyline_id, num_points, polyline_length, points)
+            self.dialog.dialog_closed.connect(self.handle_dialog_closed)
+
+        self.dialog.show()  # Keep it non-modal
+        self.dialog.reset_dialog()
+        self.dialog.update_dialog(polyline_id, num_points, polyline_length, points)
+
+    def hide_dialog(self):
+        """Resets the dialog when a polyline is deselected."""
+        if self.dialog:
+            self.dialog.hide()
+
 
     def handle_dialog_closed(self):
         """Handle the dialog_closed signal to clean up the dialog reference."""

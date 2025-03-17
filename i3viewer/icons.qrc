@@ -1,5 +1,9 @@
 <RCC>
   <qresource prefix="/">
+    <file>icons/db.svg</file>
+    <file>icons/point.svg</file>
+    <file>icons/polyline.svg</file>
+    <file>icons/xyz.svg</file>
     <file>icons/back.svg</file>
     <file>icons/bottom.svg</file>
     <file>icons/fileopen.png</file>

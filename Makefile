@@ -55,7 +55,9 @@ runexe:
 	wine $(DIST_DIR)/$(TARGET_NAME).exe
 
 7zexe:
-	7z a $(DIST_DIR)/$(TARGET_NAME)-$(shell date +%Y-%m-%d).7z $(DIST_DIR)/$(TARGET_NAME).exe
+	7z a $(DIST_DIR)/$(TARGET_NAME)-bin-$(shell date +%Y-%m-%d).7z $(DIST_DIR)/$(TARGET_NAME).exe
+	7z a $(DIST_DIR)/$(TARGET_NAME)-src-$(shell date +%Y-%m-%d).7z * -x\!dist -x\!.git -x\!build
+
 
 # Clean all build artifacts
 clean:

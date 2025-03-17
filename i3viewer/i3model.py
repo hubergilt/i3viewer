@@ -87,44 +87,63 @@ class i3model:
             self.polylines[polyline_id].append((x, y, z, g, *rest))
         
     def polylines_create_actors(self):
-        """Creates separate VTK actors for each polyline, using the modified self.polylines dictionary."""
+        """Creates separate VTK actors for each polyline in self.polylines."""
         self.actors = []
-        
+        self.colors = {}
+
         for polyline_id, vertices in self.polylines.items():
-            points = vtk.vtkPoints()
-            cells = vtk.vtkCellArray()
-            polyline = vtk.vtkPolyLine()
-            polyline.GetPointIds().SetNumberOfIds(len(vertices))
-            
-            # Generate a random color for the polyline
-            color = [random.randint(0, 255) / 255.0 for _ in range(3)]
-            self.colors[polyline_id] = color
-            
-            # Iterate over vertices (x, y, z, gradient)
-            for i, (x, y, z, *_) in enumerate(vertices):
-                point_id = points.InsertNextPoint(x, y, z)
-                polyline.GetPointIds().SetId(i, point_id)
-            
-            cells.InsertNextCell(polyline)
-            
-            # Create poly data
-            poly_data = vtk.vtkPolyData()
-            poly_data.SetPoints(points)
-            poly_data.SetLines(cells)
-            
-            # Create mapper
-            mapper = vtk.vtkPolyDataMapper()
-            mapper.SetInputData(poly_data)
-            
-            # Create actor
-            actor = vtk.vtkActor()
-            actor.SetMapper(mapper)
-            actor.GetProperty().SetColor(color)
-            actor.GetProperty().SetLineWidth(2.0)
-            actor.polyline_id = polyline_id
-            
-            self.actors.append(actor)
+            actor = self.create_actor(polyline_id, vertices)
+            if actor:
+                self.actors.append(actor)
+
+    def create_actor(self, polyline_id, vertices):
+        """Creates a VTK actor for a given polyline."""
+        if not vertices:
+            return None  # Ignore empty polylines
+
+        points = vtk.vtkPoints()
+        cells = vtk.vtkCellArray()
+        polyline = vtk.vtkPolyLine()
+        polyline.GetPointIds().SetNumberOfIds(len(vertices))
+
+        # Generate and store a random color for this polyline
+        color = [random.randint(0, 255) / 255.0 for _ in range(3)]
+        self.colors[polyline_id] = color
+
+        # Insert points and define polyline connectivity
+        for i, (x, y, z, *_) in enumerate(vertices):
+            point_id = points.InsertNextPoint(x, y, z)
+            polyline.GetPointIds().SetId(i, point_id)
+
+        cells.InsertNextCell(polyline)
+
+        # Create and configure polyline actor
+        return self.build_actor(points, cells, color, polyline_id)
+
+    def build_actor(self, points, cells, color, polyline_id):
+        """Helper function to construct and return a VTK actor."""
+        poly_data = vtk.vtkPolyData()
+        poly_data.SetPoints(points)
+        poly_data.SetLines(cells)
+
+        mapper = vtk.vtkPolyDataMapper()
+        mapper.SetInputData(poly_data)
+
+        actor = vtk.vtkActor()
+        actor.SetMapper(mapper)
+        actor.GetProperty().SetColor(color)
+        actor.GetProperty().SetLineWidth(2.0)
+        actor.polyline_id = polyline_id
+
+        return actor
         
+    def actor_by_id(self, polyline_id):
+        """Returns the VTK actor associated with the given polyline_id, or None if not found."""
+        for actor in self.actors:
+            if hasattr(actor, "polyline_id") and actor.polyline_id == polyline_id:
+                return actor
+        return None        
+            
     def polylines_save_database(self, db_path):
         """Saves the polylines data into the SQLite database."""
         conn = sqlite3.connect(db_path)

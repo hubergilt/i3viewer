@@ -4,11 +4,11 @@ import sys
 from PySide6 import QtWidgets
 from PySide6.QtSql import QSqlDatabase, QSqlQuery, QSqlTableModel
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QStyledItemDelegate, QMessageBox
-from PySide6.QtGui import QStandardItem, QStandardItemModel
+from PySide6.QtWidgets import QStyledItemDelegate, QMessageBox, QTreeView, QMenu
+from PySide6.QtGui import QStandardItem, QStandardItemModel, QIcon
 
 from i3viewer.i3mainWindow import Ui_mainWindow  # Import the generated UI class
-
+import i3viewer.icons_rc
 
 class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
     def __init__(self):
@@ -23,12 +23,17 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         self.connect_actions()
 
         self.model = None
+        self.file_path = None
         self.db_file = None
         self.db_path = None        
         self.db = None
+        self.polyline_item = None
         
-        self.tabWidget.currentChanged.connect(self.on_tab_changed)        
-
+        self.tabWidget.currentChanged.connect(self.on_tab_changed)
+        self.setup_context_menu()
+        self.treeView.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.treeView.customContextMenuRequested.connect(self.on_context_menu)
+        
     def connect_actions(self):
         """Connect UI actions to their respective functions."""
         self.actionOpenFile.triggered.connect(self.on_open_file)
@@ -94,6 +99,12 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         )
         self.tableview_release()  
         self.tableview_setup()
+    
+    def isDatabase(self):
+        if self.file_path.endswith(".db"):
+            return True
+        else:
+            return False
             
     def treeview_setup(self):
         model = self.vtkWidget.model
@@ -101,21 +112,31 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             polyline_count = len(model.polylines)
             tree_model = QStandardItemModel()
             root_item = QStandardItem(f"{self.file_path} ({polyline_count} polylines)")
-
+            
+            if self.isDatabase():
+                root_item.setIcon(QIcon(u":/icons/db.svg"))  # Set icon for the root node
+            else:
+                root_item.setIcon(QIcon(u":/icons/xyz.svg"))  # Set icon for the root node
+            
             for polyline_idx, (polyline_id, points) in enumerate(
                 model.polylines.items(), start=1
             ):
                 polyline_item = QStandardItem(f"Polyline {polyline_idx}")
+                polyline_item.setIcon(QIcon(u":/icons/polyline.svg"))
+                polyline_item.polyline_id = polyline_id
                 for idx, (x, y, z, *_) in enumerate(points, start=1):
                     point_item = QStandardItem(
                         f"Point {idx} (X={x:.3f}, Y={y:.3f}, Z={z:.3f})"
                     )
+                    point_item.setIcon(QIcon(u":/icons/point.svg"))                    
                     polyline_item.appendRow(point_item)
                 root_item.appendRow(polyline_item)
 
             tree_model.appendRow(root_item)
             tree_model.setHorizontalHeaderLabels([self.file_path])
             self.treeView.setModel(tree_model)
+            # This line makes the treeview non-editable.                        
+            self.treeView.setEditTriggers(QTreeView.NoEditTriggers) 
         
     def on_save(self):
         """Handle the 'Save' action."""
@@ -225,9 +246,68 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         
     def on_tab_changed(self, index):
         """Handle tab change events."""
-        if index == 0 and self.vtkWidget and self.file_path.endswith(".db"):  # First tab (VTK widget)
+        if index == 0 and self.vtkWidget and self.isDatabase():  # First tab (VTK widget)
             self.vtkWidget.update_polyline_data()            
 
+    def setup_context_menu(self):
+       # Create a context menu
+        self.context_menu = QMenu(self)
+
+        # Add actions to the context menu
+        selectPolyline = self.context_menu.addAction("Select Polyline")
+        unselectPolyline = self.context_menu.addAction("Unselect Polyline")
+
+        # Connect actions to slots (you can define your own slots)
+        selectPolyline.triggered.connect(self.on_select_polyline)
+        unselectPolyline.triggered.connect(self.on_unselect_polyline)        
+
+    def get_item_level(self, index):
+        """Helper function to determine the level (depth) of an item in the tree."""
+        level = 0
+        while index.isValid():
+            index = index.parent()
+            level += 1
+        return level
+
+    def on_context_menu(self, position):
+        # Get the index of the item that was right-clicked
+        index = self.treeView.indexAt(position)
+        if not index.isValid():
+            return
+
+        # Check if the item is at the second level
+        if self.get_item_level(index) != 2:
+            return
+
+        # Get the item from the index
+        self.polyline_item = self.treeView.model().itemFromIndex(index)
+        
+        # Show the context menu at the cursor's position
+        self.context_menu.exec(self.treeView.viewport().mapToGlobal(position))
+
+    def on_select_polyline(self):
+        model = self.vtkWidget.model
+        if self.polyline_item and model:
+            if hasattr(self.polyline_item, "polyline_id"):
+                polyline_id = self.polyline_item.polyline_id
+                actor = model.actor_by_id(polyline_id)
+                if actor:
+                    if self.vtkWidget.selected_actor:
+                        self.vtkWidget.deselect_actor(self.vtkWidget.selected_actor)
+                    self.vtkWidget.select_actor(actor)
+                    self.vtkWidget.UpdateView()
+                
+
+    def on_unselect_polyline(self):
+        model = self.vtkWidget.model
+        if self.polyline_item and model:
+            if hasattr(self.polyline_item, "polyline_id"):
+                polyline_id = self.polyline_item.polyline_id
+                actor = model.actor_by_id(polyline_id)
+                if actor:
+                    self.vtkWidget.deselect_actor(actor)
+                    self.vtkWidget.UpdateView()
+                    
 def main():
     app = QtWidgets.QApplication(sys.argv)
 
