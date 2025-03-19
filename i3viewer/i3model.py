@@ -25,7 +25,7 @@ class i3model:
     def polylines_read_file(self):
         """Reads the XYZ file and stores polylines with gradient values (multiplied by 100)."""
         self.polylines = {}
-        polyline_id = 0
+        polyline_id = 1
         self.polylines[polyline_id] = []
 
         with open(self.file_path, "r") as file:
@@ -177,10 +177,10 @@ class i3model:
 
         for polyline_id, points in self.polylines.items():
             point_id = 1
-            for x, y, z, g in points:
+            for x, y, z, g, *rest in points:
                 cursor.execute(
                     "INSERT INTO polylines (polyline_id, point_id, X, Y, Z, gradient) VALUES (?, ?, ?, ?, ?, ?)",
-                    (polyline_id + 1, point_id, x, y, z, g),
+                    (polyline_id, point_id, x, y, z, g),
                 )
                 point_id += 1
 

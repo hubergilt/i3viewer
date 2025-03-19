@@ -62,17 +62,17 @@ class i3vtkWidget(QWidget):
         if actor:
             if self.selected_actor == actor:
                 self.deselect_actor(actor)
-                self.hide_dialog()
+                #self.hide_dialog()
             else:
                 if self.selected_actor:
                     self.deselect_actor(self.selected_actor)
-                    self.hide_dialog()
-                self.select_actor(actor)
+                    #self.hide_dialog()
+                self.select_actor(actor)                
                 self.show_dialog(actor)
         else:
             if self.selected_actor:
                 self.deselect_actor(self.selected_actor)
-                self.hide_dialog()
+                #self.hide_dialog()
 
         self.UpdateView()
 

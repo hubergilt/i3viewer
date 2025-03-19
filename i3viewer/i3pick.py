@@ -1,6 +1,6 @@
 import sys
 from PySide6.QtWidgets import QApplication, QMainWindow, QPushButton, QDialog, QTableWidget, QTableWidgetItem
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, QSettings
 from i3viewer.i3pickDialog import Ui_Dialog  # Import the generated UI class
 
 class NonModalDialog(QDialog, Ui_Dialog):
@@ -28,6 +28,17 @@ class NonModalDialog(QDialog, Ui_Dialog):
 
         # Populate the fields and table with initial data
         self.update_dialog(polyline_id, num_points, length, points)
+        
+        # Initialize QSettings to save/restore window geometry
+        self.settings = QSettings("hpgl", "i3dviewer")
+        
+        # Restore the previous geometry (position and size)
+        self.restore_geometry()
+        
+    def restore_geometry(self):
+        """Restores the dialog's geometry from QSettings."""
+        if self.settings.contains("geometry"):
+            self.restoreGeometry(self.settings.value("geometry"))        
 
     def update_dialog(self, polyline_id, num_points, length, points):
         """Update the dialog with new values."""
@@ -96,6 +107,8 @@ class NonModalDialog(QDialog, Ui_Dialog):
         self.tableWidget.clearContents()  # Clear cell contents
 
     def closeEvent(self, event):
+        """Saves the dialog's geometry before closing."""
+        self.settings.setValue("geometry", self.saveGeometry())
         """Override closeEvent to reset the dialog and emit a signal before closing."""
         self.reset_dialog()  # Reset the dialog
         self.dialog_closed.emit()  # Emit the custom signal

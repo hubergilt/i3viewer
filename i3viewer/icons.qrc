@@ -1,24 +1,20 @@
 <RCC>
   <qresource prefix="/">
+    <file>icons/exit.svg</file>
+    <file>icons/export.svg</file>
     <file>icons/db.svg</file>
+    <file>icons/open.svg</file>
+    <file>icons/help.svg</file>
     <file>icons/point.svg</file>
     <file>icons/polyline.svg</file>
     <file>icons/xyz.svg</file>
     <file>icons/back.svg</file>
     <file>icons/bottom.svg</file>
-    <file>icons/fileopen.png</file>
-    <file>icons/filesave.png</file>
     <file>icons/front.svg</file>
-    <file>icons/help.png</file>
     <file>icons/iso.svg</file>
     <file>icons/left.svg</file>
-    <file>icons/pan.svg</file>
-    <file>icons/print.png</file>
-    <file>icons/reset.svg</file>
     <file>icons/resize.svg</file>
     <file>icons/right.svg</file>
-    <file>icons/rotate.svg</file>
     <file>icons/top.svg</file>
-    <file>icons/ZoomBox.svg</file>
   </qresource>
 </RCC>
