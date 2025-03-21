@@ -4,12 +4,14 @@ import sqlite3
 import vtk
 from PySide6.QtGui import QStandardItem, QStandardItemModel
 import math
+import csv
 
 class i3model:
     def __init__(self, file_path):
         self.file_path = file_path
         self.polylines = {}
-        self.poly_data = vtk.vtkPolyData()
+        self.points = {}
+        #self.poly_data = vtk.vtkPolyData()
         self.actors = []
         self.colors = {}
 
@@ -55,7 +57,6 @@ class i3model:
 
         # Remove empty polylines
         self.polylines = {k: v for k, v in self.polylines.items() if v}
-
     
     def polylines_read_table(self):
         """Fetch polylines grouped by polyline_id from the SQLite database."""
@@ -92,11 +93,11 @@ class i3model:
         self.colors = {}
 
         for polyline_id, vertices in self.polylines.items():
-            actor = self.create_actor(polyline_id, vertices)
+            actor = self.polylines_create_actor(polyline_id, vertices)
             if actor:
                 self.actors.append(actor)
 
-    def create_actor(self, polyline_id, vertices):
+    def polylines_create_actor(self, polyline_id, vertices):
         """Creates a VTK actor for a given polyline."""
         if not vertices:
             return None  # Ignore empty polylines
@@ -118,9 +119,9 @@ class i3model:
         cells.InsertNextCell(polyline)
 
         # Create and configure polyline actor
-        return self.build_actor(points, cells, color, polyline_id)
+        return self.polylines_build_actor(points, cells, color, polyline_id)
 
-    def build_actor(self, points, cells, color, polyline_id):
+    def polylines_build_actor(self, points, cells, color, polyline_id):
         """Helper function to construct and return a VTK actor."""
         poly_data = vtk.vtkPolyData()
         poly_data.SetPoints(points)
@@ -137,12 +138,12 @@ class i3model:
 
         return actor
         
-    def actor_by_id(self, polyline_id):
+    def polylines_get_actor(self, polyline_id):
         """Returns the VTK actor associated with the given polyline_id, or None if not found."""
         for actor in self.actors:
             if hasattr(actor, "polyline_id") and actor.polyline_id == polyline_id:
                 return actor
-        return None        
+        return None
             
     def polylines_save_database(self, db_path):
         """Saves the polylines data into the SQLite database."""
@@ -183,6 +184,132 @@ class i3model:
                     (polyline_id, point_id, x, y, z, g),
                 )
                 point_id += 1
+
+        conn.commit()
+        conn.close()
+        
+    def points_format_actors(self, fromFile=True):
+        """Executes the full pipeline."""
+        if fromFile:
+            self.points_read_file()
+        else:
+            self.points_read_table()
+        self.points_create_actors()
+        return self.actors
+        
+    def points_get_actor(self, point_id):
+        """Returns the VTK actor associated with the given point_id, or None if not found."""
+        for actor in self.actors:
+            if hasattr(actor, "point_id") and actor.point_id == point_id:
+                return actor
+        return None         
+    
+    def points_read_file(self):
+        self.points = {}
+        point_id = 1
+        
+        with open(self.file_path, 'r', newline='', encoding='utf-8') as file:
+            reader = csv.reader(file)
+            
+            for row in reader:
+                if len(row) < 6:
+                    continue  # Skip invalid lines
+                
+                try:
+                    x = float(row[0])
+                    y = float(row[1])
+                    z = float(row[2])
+                    name = row[5]
+                    
+                    self.points[point_id] = [(x, y, z, name)]
+                    point_id += 1
+                except ValueError:
+                    continue  # Skip lines with conversion errors
+
+    def points_read_table(self):
+        pass
+    
+    def points_create_actors(self):
+        """Creates separate VTK actors for each point in self.points."""
+        self.actors = []
+        self.colors = {}
+
+        for point_id, vertices in self.points.items():
+            actor = self.point_create_actor(point_id, vertices)
+            if actor:
+                self.actors.append(actor)
+
+    def point_create_actor(self, point_id, vertices):
+        """Creates a VTK actor for a given point."""
+        if not vertices:
+            return None  # Ignore empty points
+
+        points = vtk.vtkPoints()
+        vertices_cell = vtk.vtkCellArray()
+
+        # Generate and store a random color for this point
+        color = [random.randint(0, 255) / 255.0 for _ in range(3)]
+        self.colors[point_id] = color
+
+        # Insert points
+        for x, y, z, name in vertices:
+            vertex_id = points.InsertNextPoint(x, y, z)
+            vertices_cell.InsertNextCell(1)
+            vertices_cell.InsertCellPoint(vertex_id)
+
+        # Create and configure point actor
+        return self.point_build_actor(points, vertices_cell, color, point_id)
+
+    def point_build_actor(self, points, vertices_cell, color, point_id):
+        """Helper function to construct and return a VTK actor for points."""
+        poly_data = vtk.vtkPolyData()
+        poly_data.SetPoints(points)
+        poly_data.SetVerts(vertices_cell)
+
+        mapper = vtk.vtkPolyDataMapper()
+        mapper.SetInputData(poly_data)
+
+        actor = vtk.vtkActor()
+        actor.SetMapper(mapper)
+        actor.GetProperty().SetColor(color)
+        actor.GetProperty().SetPointSize(5.0)
+        actor.GetProperty().RenderPointsAsSpheresOn()  # Enable circular points
+        actor.point_id = point_id
+        
+        #print(actor.point_id)
+
+        return actor
+        
+    def points_save_database(self, db_path):
+        """Saves the polylines data into the SQLite database."""
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS points (
+                point_id INTEGER PRIMARY KEY,
+                X REAL,
+                Y REAL,
+                Z REAL,
+                Name TEXT
+            )
+            """
+        )
+
+        # Clear table before inserting new data
+        cursor.execute("DELETE FROM points")
+
+        """Inserts point data into the database."""
+        for point_id, vertices in self.points.items():
+            for x, y, z, name in vertices:
+                cursor.execute(
+                    """
+                    INSERT INTO points (point_id, X, Y, Z, Name)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (point_id, x, y, z, name),
+                )      
 
         conn.commit()
         conn.close()

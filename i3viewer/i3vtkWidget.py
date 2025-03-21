@@ -8,7 +8,8 @@ from PySide6.QtWidgets import QHBoxLayout
 from vtk import vtkActor
 
 from i3viewer.i3model import i3model
-from i3viewer.i3pick import NonModalDialog as Dialog
+from i3viewer.i3polyline import NonModalDialog as PolylineDialog
+from i3viewer.i3point import NonModalDialog as PointDialog
 
 class i3vtkWidget(QWidget):
     def __init__(self, parent=None):
@@ -20,7 +21,8 @@ class i3vtkWidget(QWidget):
         self.actors = None
         self.TrihedronPos = 1
         self.selected_actor = None
-        self.dialog = None
+        self.polylineDialog = None
+        self.pointDialog = None
 
         if self.Parent == None:
             self.resize(500, 500)
@@ -30,15 +32,24 @@ class i3vtkWidget(QWidget):
         self.ShowEdges = False
         self.SetupWnd()
 
-    def import_file(self, file_path, fromFile=True):
+    def import_file(self, file_path, fromFile=True, isPolylines=True):
         if self.actors:
             for actor in self.actors:
                 self.RemoveActor(actor)
         self.model = i3model(file_path)
-        self.actors = self.model.polylines_format_actors(fromFile)
+        
+        if isPolylines:
+            self.actors = self.model.polylines_format_actors(fromFile)
+        else:
+            self.actors = self.model.points_format_actors(fromFile)
+            
         for actor in self.actors:
             self.AddActor(actor)
-        self.SetRepresentation(2)  # Surface with edges
+            
+        if isPolylines:
+            self.SetRepresentation(2)  # Surface with edges
+        else:
+            self.SetRepresentation(1)
         
     def update_polyline_data(self):
         if self.model:
@@ -77,38 +88,67 @@ class i3vtkWidget(QWidget):
         self.UpdateView()
 
     def select_actor(self, actor):
-        """Select a new polyline actor by changing its color and line width."""
-        if not hasattr(actor, 'polyline_id') or actor.polyline_id not in self.model.polylines:
+        """Select a new actor (point or polyline) by changing its color and line width."""
+        
+        if hasattr(actor, 'polyline_id') and actor.polyline_id in self.model.polylines:
+            # Handle polyline selection
+            actor.GetProperty().SetColor(1, 1, 0)  # Yellow color
+            actor.GetProperty().SetLineWidth(5.0)
+        elif hasattr(actor, 'point_id') and actor.point_id in self.model.points:
+            # Handle point selection
+            actor.GetProperty().SetColor(1, 1, 0)  # Yellow color
+            actor.GetProperty().SetPointSize(10.0)  # Increase point size for selection
+        else:
             return  # Ignore invalid actors
 
-        actor.GetProperty().SetColor(1, 1, 0)  # Yellow color
-        actor.GetProperty().SetLineWidth(5.0)
         self.selected_actor = actor
 
     def deselect_actor(self, actor):
-        """Deselect the given actor by restoring its original color and line width."""
-        if not hasattr(actor, 'polyline_id') or actor.polyline_id not in self.model.colors:
+        """Deselect the given actor (point or polyline) by restoring its original color and size."""
+        if hasattr(actor, 'polyline_id') and actor.polyline_id in self.model.colors:
+            # Handle polyline deselection
+            original_color = self.model.colors[actor.polyline_id]
+            actor.GetProperty().SetColor(original_color)
+            actor.GetProperty().SetLineWidth(2.0)
+        elif hasattr(actor, 'point_id') and actor.point_id in self.model.colors:
+            # Handle point deselection
+            original_color = self.model.colors[actor.point_id]
+            actor.GetProperty().SetColor(original_color)
+            actor.GetProperty().SetPointSize(5.0)  # Restore original point size
+        else:
             return  # Ignore invalid actors
 
-        original_color = self.model.colors[actor.polyline_id]
-        actor.GetProperty().SetColor(original_color)
-        actor.GetProperty().SetLineWidth(2.0)
         self.selected_actor = None
-
+        
     def show_dialog(self, actor):
-        """Displays or updates the dialog with polyline information."""
-        polyline_id = actor.polyline_id
-        points = self.model.polylines[polyline_id]
-        num_points = len(points)
-        polyline_length = self.calculate_polyline_length(points)
+        """Displays or updates the dialog with polyline or point information."""
+        if hasattr(actor, 'polyline_id'):
+            # Handle polyline
+            polyline_id = actor.polyline_id
+            points = self.model.polylines[polyline_id]
+            num_points = len(points)
+            polyline_length = self.calculate_polyline_length(points)
 
-        if self.dialog is None:
-            self.dialog = Dialog(polyline_id, num_points, polyline_length, points)
-            self.dialog.dialog_closed.connect(self.handle_dialog_closed)
+            if self.polylineDialog is None:
+                self.polylineDialog = PolylineDialog(polyline_id, num_points, polyline_length, points)
+                self.polylineDialog.dialog_closed.connect(self.handle_dialog_closed)
 
-        self.dialog.show()  # Keep it non-modal
-        self.dialog.reset_dialog()
-        self.dialog.update_dialog(polyline_id, num_points, polyline_length, points)
+            self.polylineDialog.show()  # Keep it non-modal
+            self.polylineDialog.reset_dialog()
+            self.polylineDialog.update_dialog(polyline_id, num_points, polyline_length, points)
+
+        elif hasattr(actor, 'point_id'):
+            # Handle point
+            point_id = actor.point_id
+            point_data = self.model.points[point_id]  # Assuming self.model.points stores point data
+
+            if self.pointDialog is None:
+                self.pointDialog = PointDialog(point_id, *point_data[0])
+                self.pointDialog.dialog_closed.connect(self.handle_dialog_closed)
+
+            self.pointDialog.show()  # Keep it non-modal
+            self.pointDialog.reset_dialog()
+            self.pointDialog.update_dialog(point_id, *point_data[0])
 
     def hide_dialog(self):
         """Resets the dialog when a polyline is deselected."""

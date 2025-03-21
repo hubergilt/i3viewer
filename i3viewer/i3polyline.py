@@ -1,7 +1,7 @@
 import sys
 from PySide6.QtWidgets import QApplication, QMainWindow, QPushButton, QDialog, QTableWidget, QTableWidgetItem
 from PySide6.QtCore import Qt, Signal, QSettings
-from i3viewer.i3pickDialog import Ui_Dialog  # Import the generated UI class
+from i3viewer.i3polylineDialog import Ui_Dialog  # Import the generated UI class
 
 class NonModalDialog(QDialog, Ui_Dialog):
     # Define a custom signal to emit when the dialog is closed
@@ -29,9 +29,9 @@ class NonModalDialog(QDialog, Ui_Dialog):
         # Populate the fields and table with initial data
         self.update_dialog(polyline_id, num_points, length, points)
         
-        # Initialize QSettings to save/restore window geometry
-        self.settings = QSettings("hpgl", "i3dviewer")
-        
+        # Initialize QSettings based on the type of dialog
+        self.settings = QSettings("hpgl", "polylineDialog")  # Settings for polyline dialog
+
         # Restore the previous geometry (position and size)
         self.restore_geometry()
         

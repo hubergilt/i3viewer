@@ -1,5 +1,6 @@
 <RCC>
   <qresource prefix="/">
+    <file>icons/srg.svg</file>
     <file>icons/exit.svg</file>
     <file>icons/export.svg</file>
     <file>icons/db.svg</file>
@@ -7,8 +8,8 @@
     <file>icons/help.svg</file>
     <file>icons/point.svg</file>
     <file>icons/polyline.svg</file>
-    <file>icons/xyz.svg</file>
     <file>icons/back.svg</file>
+    <file>icons/xyz.svg</file>
     <file>icons/bottom.svg</file>
     <file>icons/front.svg</file>
     <file>icons/iso.svg</file>
