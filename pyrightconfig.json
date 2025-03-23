@@ -1,4 +1,15 @@
 {
-  "venvPath": "/home/huber/.cache/pypoetry/virtualenvs",
-  "venv": "i3viewer-WB5AEXJP-py3.11"
+  "venvPath": "/opt/pypoetry/virtualenvs",
+  "venv": "i3viewer-WB5AEXJP-py3.12",
+  "typeCheckingMode": "basic",
+  "reportMissingImports": true,
+  "reportMissingTypeStubs": false,
+  "pythonVersion": "3.12.9",
+  "extraPaths": [],
+  "useLibraryCodeForTypes": true,
+  "exclude": [
+    "./i3viewer/i3mainWindow.py",
+    "./i3viewer/i3polylineDialog.py",
+    "./i3viewer/i3pointDialog.py"
+  ]
 }

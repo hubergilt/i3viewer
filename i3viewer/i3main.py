@@ -2,13 +2,12 @@ import os
 import sys
 
 from PySide6 import QtWidgets
-from PySide6.QtSql import QSqlDatabase, QSqlQuery, QSqlTableModel
+from PySide6.QtSql import QSqlDatabase, QSqlTableModel
 from PySide6.QtCore import Qt, QItemSelectionModel
 from PySide6.QtWidgets import QStyledItemDelegate, QMessageBox, QTreeView, QMenu
 from PySide6.QtGui import QStandardItem, QStandardItemModel, QIcon
 
 from i3viewer.i3mainWindow import Ui_mainWindow  # Import the generated UI class
-import i3viewer.icons_rc
 
 class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
     def __init__(self):
@@ -32,7 +31,10 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
 
         self.tabWidget.currentChanged.connect(self.on_tab_changed)
         self.setup_context_menu()
-        self.treeView.setContextMenuPolicy(Qt.CustomContextMenu)
+
+        if hasattr(Qt, "CustomContextMenu"):
+            self.treeView.setContextMenuPolicy(getattr(Qt, "CustomContextMenu"))
+
         self.treeView.customContextMenuRequested.connect(self.on_context_menu)
 
     def connect_actions(self):
@@ -59,7 +61,9 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         home_dir = os.path.expanduser("~")
         file_dialog.setDirectory(home_dir)
         file_dialog.setNameFilter("XYZ Files (*.xyz);;SQLite Files (*.db);;SRG Files (*.srg)")
-        file_dialog.setFileMode(QtWidgets.QFileDialog.ExistingFile)
+
+        if hasattr(QtWidgets.QFileDialog, "ExistingFile"):
+            file_dialog.setFileMode(getattr(QtWidgets.QFileDialog,"ExistingFile"))
 
         if file_dialog.exec():
             selected_files = file_dialog.selectedFiles()
@@ -72,7 +76,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
                 if self.file_path.endswith(".xyz"):
                     self.open_xyz_file()
                 elif self.file_path.endswith(".srg"):
-                    self.open_srg_file()                   
+                    self.open_srg_file()
                 elif self.file_path.endswith(".db"):
                     self.open_db_file()
                 else:
@@ -82,6 +86,10 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
 
 
     def open_xyz_file(self):
+
+        if self.file_path is None:
+            return
+
         base_name, _ = os.path.splitext(self.file_path)
         self.db_path = base_name + ".db"
 
@@ -93,8 +101,12 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             f"Imported data from the file {self.file_path}."
         )
         self.tableview_release()
-        
+
     def open_srg_file(self):
+
+        if self.file_path is None:
+            return
+
         base_name, _ = os.path.splitext(self.file_path)
         self.db_path = base_name + ".db"
 
@@ -118,7 +130,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             f"Imported data from the file {self.db_path}."
         )
         self.tableview_release()
-        self.tableview_setup()
+        self.tableview_setup_polylines()
 
     def isDatabase(self):
         if self.file_path:
@@ -135,70 +147,78 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
                 return False
 
     def treeview_setup(self):
+
+        if self.file_path is None:
+            return
+
         model = self.vtkWidget.model
         if model:
             tree_model = QStandardItemModel()
             root_item = QStandardItem(f"{self.file_path}")
+            header_label = self.file_path
+            polyline_count = len(model.polylines)
+            point_count = len(model.points)
 
             if self.isDatabase():
                 root_item.setIcon(QIcon(u":/icons/db.svg"))  # Set icon for the root node
                 self.treeview_populate_polylines(model, root_item)
-                self.treeview_populate_points(model, root_item)               
+                self.treeview_populate_points(model, root_item)
+                header_label += f"({polyline_count}) polylines\n"
+                header_label += f"({point_count}) points\n"
             elif self.isPolylines():
                 root_item.setIcon(QIcon(u":/icons/xyz.svg"))  # Set icon for the root node
                 self.treeview_populate_polylines(model, root_item)
+                header_label += f"({polyline_count}) polylines\n"
             else:
                 root_item.setIcon(QIcon(u":/icons/srg.svg"))  # Set icon for the root node
                 self.treeview_populate_points(model, root_item)
+                header_label += f"({point_count}) points\n"
 
             tree_model.appendRow(root_item)
             tree_model.setHorizontalHeaderLabels([self.file_path])
             self.treeView.setModel(tree_model)
             # This line makes the treeview non-editable.
-            self.treeView.setEditTriggers(QTreeView.NoEditTriggers)
+            if hasattr(QTreeView, "NoEditTriggers"):
+                self.treeView.setEditTriggers(getattr(QTreeView, "NoEditTriggers"))
 
     def treeview_populate_polylines(self, model, root_item):
         """Populates the tree view with polylines."""
         if hasattr(model, 'polylines'):
-            polyline_count = len(model.polylines)
-            #polyline_root = QStandardItem(f"Polylines ({polyline_count})")
-            #polyline_root.setIcon(QIcon(u":/icons/polyline.svg"))
-            
             for polyline_idx, (polyline_id, points) in enumerate(model.polylines.items(), start=1):
                 polyline_item = QStandardItem(f"Polyline {polyline_idx}")
                 polyline_item.setIcon(QIcon(u":/icons/polyline.svg"))
-                polyline_item.polyline_id = polyline_id
-                
+                setattr(polyline_item, "polyline_id", polyline_id)
+
                 for idx, (x, y, z, *_) in enumerate(points, start=1):
                     point_item = QStandardItem(
                         f"Point {idx} (X={x:.3f}, Y={y:.3f}, Z={z:.3f})"
                     )
                     point_item.setIcon(QIcon(u":/icons/point.svg"))
                     polyline_item.appendRow(point_item)
-                
+
                 root_item.appendRow(polyline_item)
             #root_item.appendRow(polyline_root)
 
     def treeview_populate_points(self, model, root_item):
         """Populates the tree view with points."""
         if hasattr(model, 'points'):
-            point_count = len(model.points)
-            #points_root = QStandardItem(f"Points ({point_count})")
-            #points_root.setIcon(QIcon(u":/icons/points.svg"))
-            
             for point_idx, (point_id, vertices) in enumerate(model.points.items(), start=1):
-                
+
                 (x, y, z, name) = vertices[0]
                 point_item = QStandardItem(f"Point {point_idx} (X={x:.3f}, Y={y:.3f}, Z={z:.3f})")
                 point_item.setIcon(QIcon(u":/icons/point.svg"))
-                point_item.point_id = point_id
-                point_item.name = name
-                
+                setattr(point_item, "point_id", point_id)
+                setattr(point_item, "name", name)
+
                 root_item.appendRow(point_item)
             #root_item.appendRow(points_root)
 
     def on_export(self):
         """Handle the 'Save' action."""
+
+        if self.db_path is None:
+            return
+
         model = self.vtkWidget.model
         if not model:
             QMessageBox.warning(
@@ -209,16 +229,17 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             return
 
         if os.path.exists(self.db_path):
-            reply = QMessageBox.question(
-                self,
-                'Message',
-                f"The Database File Already Exists:\n{self.db_path}\nDo you want to create an empty database\noverwriting the existing file?",
-                QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.No  # Default is No
-            )
-            if reply != QMessageBox.Yes:
-                return  # User chose not to overwrite
-        
+            if hasattr(QMessageBox, "Yes") or hasattr(QMessageBox, "No"):
+                reply = QMessageBox.question(
+                    self,
+                    'Message',
+                    f"The Database File Already Exists:\n{self.db_path}\nDo you want to create an empty database\noverwriting the existing file?",
+                    getattr(QMessageBox, "Yes") | getattr(QMessageBox, "No"),
+                    getattr(QMessageBox, "No")  # Default is No
+                )
+                if reply != getattr(QMessageBox, "Yes"):
+                    return  # User chose not to overwrite
+
         if model.polylines:
             model.polylines_save_database(self.db_path)
         if model.points:
@@ -231,12 +252,14 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             self.tableview_setup_polylines()
         if model.points:
             self.tableview_setup_points()
-            
-        QMessageBox.information(
-            self,
-            "Save Successful",
-            "The data has been successfully saved to the database."
-        )
+
+        if hasattr(QMessageBox, "Ok"):
+            QMessageBox.information(
+                self,
+                "Save Successful",
+                "The data has been successfully saved to the database.",
+                getattr(QMessageBox, "Ok")
+            )
 
     def tableview_setup_polylines(self):
         # Check if the database is already connected
@@ -265,21 +288,26 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
 
         # Custom validated model
         class ValidatedSqlTableModel(QSqlTableModel):
-            def __init__(self, parent=None, db=None, read_only_columns=None):
+            def __init__(self, window, parent=None, db=None, read_only_columns=None):
+                # Handle db explicitly to satisfy Pyright type checking
+                if db is None:
+                    db = QSqlDatabase.database()
                 super().__init__(parent, db)
                 self.read_only_columns = read_only_columns if read_only_columns else []
+                self.window = window
 
             def setData(self, index, value, role=Qt.ItemDataRole.EditRole):
+
                 # Validate numeric input for editable columns
                 if index.column() not in self.read_only_columns and role == Qt.ItemDataRole.EditRole:
                     try:
-                        float_value = float(value)  # Ensure the value is numeric
+                        _ = float(value)  # Ensure the value is numeric
                         return super().setData(index, value, role)
                     except (ValueError, TypeError):
                         QMessageBox.warning(
-                            None,
+                            self.window,
                             "Invalid Input",
-                            "Please enter a valid numeric value.",
+                            "Please enter a valid numeric value."
                         )
                         return False
                 return super().setData(index, value, role)
@@ -291,10 +319,10 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
                 return super().flags(index)
 
         # Replace the model with the custom validated model
-        self.tableModel = ValidatedSqlTableModel(self, self.db, read_only_columns=[0, 1, 2, 3, 4, 5])
+        self.tableModel = ValidatedSqlTableModel(self, self, self.db, read_only_columns=[0, 1, 2, 3, 4, 5])
         self.tableModel.setTable("polylines")
         self.tableModel.select()
-        
+
         # Force fetching all rows
         self.fetch_all_rows()
 
@@ -348,17 +376,21 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             return -1
 
         class ValidatedSqlTableModel(QSqlTableModel):
-            def __init__(self, parent=None, db=None, read_only_columns=None):
+            def __init__(self, window, parent=None, db=None, read_only_columns=None):
+                # Handle db explicitly to satisfy Pyright type checking
+                if db is None:
+                    db = QSqlDatabase.database()
                 super().__init__(parent, db)
                 self.read_only_columns = read_only_columns if read_only_columns else []
+                self.window = window
 
             def setData(self, index, value, role=Qt.ItemDataRole.EditRole):
                 if index.column() not in self.read_only_columns and role == Qt.ItemDataRole.EditRole:
                     try:
-                        float_value = float(value)
+                        _ = float(value)
                         return super().setData(index, value, role)
                     except (ValueError, TypeError):
-                        QMessageBox.warning(None, "Invalid Input", "Please enter a valid numeric value.")
+                        QMessageBox.warning(self.window, "Invalid Input", "Please enter a valid numeric value.")
                         return False
                 return super().setData(index, value, role)
 
@@ -404,7 +436,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         """
         if self.tableModel:
             while self.tableModel.canFetchMore():
-                self.tableModel.fetchMore()    
+                self.tableModel.fetchMore()
 
     def tableview_release(self):
         if self.tableModel:
@@ -470,7 +502,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
 
     def closeEvent(self, event):
         """Override closeEvent to close the dialog when the application is closed."""
-        if self.vtkWidget is not None:
+        if self.vtkWidget:
             self.vtkWidget.close()  # Close the dialog
         event.accept()  # Accept the close event
 
@@ -525,7 +557,8 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             return
 
         # Get the item from the index
-        self.context_item = self.treeView.model().itemFromIndex(index)
+        if hasattr(self.treeView.model(), "itemFromIndex"):
+            self.context_item = getattr(self.treeView.model(), "itemFromIndex")(index)
 
         # Determine if the item is a polyline or a point
         if hasattr(self.context_item, "polyline_id"):
@@ -536,7 +569,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             self.context_id = self.context_item.point_id
         else:
             return
-            
+
         # Show only relevant actions based on the item type
         if self.context_type == "polyline":
             self.selectPolyline.setVisible(True)
@@ -555,10 +588,10 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             self.selectPoint.setVisible(True)
             self.unselectPoint.setVisible(True)
             self.showAttribPoint.setVisible(True)
-            self.editAttribPoint.setVisible(True) 
+            self.editAttribPoint.setVisible(True)
 
         # Show the context menu at the cursor's position
-        self.context_menu.exec(self.treeView.viewport().mapToGlobal(position))    
+        self.context_menu.exec(self.treeView.viewport().mapToGlobal(position))
 
     def on_select_polyline(self):
         model = self.vtkWidget.model
@@ -605,9 +638,10 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             found_row = -1
             for row in range(self.tableModel.rowCount()):
                 index = self.tableModel.index(row, 0)  # Check the first column
-                if self.tableModel.data(index, Qt.DisplayRole) == self.context_id:
-                    found_row = row
-                    break
+                if hasattr(Qt, "DisplayRole"):
+                    if self.tableModel.data(index, getattr(Qt, "DisplayRole")) == self.context_id:
+                        found_row = row
+                        break
 
             if found_row == -1:
                 print(f"No row found with polyline_id '{self.context_id}'.")
@@ -619,7 +653,8 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
 
             # Select the entire row
             selection_model = self.tableView.selectionModel()
-            selection_model.select(index, QItemSelectionModel.ClearAndSelect | QItemSelectionModel.Rows)
+            if hasattr(QItemSelectionModel, "ClearAndSelect") and hasattr(QItemSelectionModel, "Rows"):
+                selection_model.select(index, getattr(QItemSelectionModel, "ClearAndSelect") | getattr(QItemSelectionModel, "Rows"))
 
     def on_select_point(self):
         model = self.vtkWidget.model
@@ -666,9 +701,10 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             found_row = -1
             for row in range(self.tableModel.rowCount()):
                 index = self.tableModel.index(row, 0)  # Check the first column
-                if self.tableModel.data(index, Qt.DisplayRole) == self.context_id:
-                    found_row = row
-                    break
+                if hasattr(Qt, "DisplayRole"):
+                    if self.tableModel.data(index, getattr(Qt, "DisplayRole")) == self.context_id:
+                        found_row = row
+                        break
 
             if found_row == -1:
                 print(f"No row found with point_id '{self.context_id}'.")
@@ -680,9 +716,10 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
 
             # Select the entire row
             selection_model = self.tableView.selectionModel()
-            selection_model.select(index, QItemSelectionModel.ClearAndSelect | QItemSelectionModel.Rows)        
+            if hasattr(QItemSelectionModel, "ClearAndSelect") and hasattr(QItemSelectionModel, "Rows"):
+                selection_model.select(index, getattr(QItemSelectionModel, "ClearAndSelect") | getattr(QItemSelectionModel, "Rows"))
 
-                                            
+
 def main():
     app = QtWidgets.QApplication(sys.argv)
 

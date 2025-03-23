@@ -1,15 +1,12 @@
-import sys
-
-from PySide6.QtGui import QStandardItemModel
 import vtk
 import vtkmodules.qt.QVTKRenderWindowInteractor as QVTK
-from PySide6.QtWidgets import QApplication, QWidget
-from PySide6.QtWidgets import QHBoxLayout
+from PySide6.QtWidgets import QHBoxLayout, QWidget
 from vtk import vtkActor
 
 from i3viewer.i3model import i3model
-from i3viewer.i3polyline import NonModalDialog as PolylineDialog
 from i3viewer.i3point import NonModalDialog as PointDialog
+from i3viewer.i3polyline import NonModalDialog as PolylineDialog
+
 
 class i3vtkWidget(QWidget):
     def __init__(self, parent=None):
@@ -21,8 +18,8 @@ class i3vtkWidget(QWidget):
         self.actors = None
         self.TrihedronPos = 1
         self.selected_actor = None
-        self.polylineDialog = None
-        self.pointDialog = None
+        self.polylineDialog = PolylineDialog(0, 0, 0, [])
+        self.pointDialog = PointDialog(0, 0, 0, 0, "")
 
         if self.Parent == None:
             self.resize(500, 500)
@@ -37,20 +34,20 @@ class i3vtkWidget(QWidget):
             for actor in self.actors:
                 self.RemoveActor(actor)
         self.model = i3model(file_path)
-        
+
         if isPolylines:
             self.actors = self.model.polylines_format_actors(fromFile)
         else:
             self.actors = self.model.points_format_actors(fromFile)
-            
+
         for actor in self.actors:
             self.AddActor(actor)
-            
+
         if isPolylines:
             self.SetRepresentation(2)  # Surface with edges
         else:
             self.SetRepresentation(1)
-        
+
     def update_polyline_data(self):
         if self.model:
             self.model.polylines_read_table()
@@ -64,8 +61,12 @@ class i3vtkWidget(QWidget):
             length += ((x2 - x1)**2 + (y2 - y1)**2 + (z2 - z1)**2) ** 0.5
         return round(length, 3)
 
-    def on_pick(self, obj, event):
+    def on_pick(self, obj, event): # pyright: ignore[reportUnusedVariable]
         """Handles picking an actor and updates selection and dialog accordingly."""
+        _, _ = obj, event
+        if self.interactor is None or self.renderer is None:
+            return
+
         click_pos = self.interactor.GetEventPosition()
         self.picker.Pick(click_pos[0], click_pos[1], 0, self.renderer)
         actor = self.picker.GetActor()
@@ -73,23 +74,26 @@ class i3vtkWidget(QWidget):
         if actor:
             if self.selected_actor == actor:
                 self.deselect_actor(actor)
-                #self.hide_dialog()
+                # self.hide_dialog()
             else:
                 if self.selected_actor:
                     self.deselect_actor(self.selected_actor)
-                    #self.hide_dialog()
-                self.select_actor(actor)                
+                    # self.hide_dialog()
+                self.select_actor(actor)
                 self.show_dialog(actor)
         else:
             if self.selected_actor:
                 self.deselect_actor(self.selected_actor)
-                #self.hide_dialog()
+                # self.hide_dialog()
 
         self.UpdateView()
 
     def select_actor(self, actor):
         """Select a new actor (point or polyline) by changing its color and line width."""
-        
+
+        if self.model is None:
+            return
+
         if hasattr(actor, 'polyline_id') and actor.polyline_id in self.model.polylines:
             # Handle polyline selection
             actor.GetProperty().SetColor(1, 1, 0)  # Yellow color
@@ -105,6 +109,10 @@ class i3vtkWidget(QWidget):
 
     def deselect_actor(self, actor):
         """Deselect the given actor (point or polyline) by restoring its original color and size."""
+
+        if self.model is None or not hasattr(self.model, "colors"):
+            return
+
         if hasattr(actor, 'polyline_id') and actor.polyline_id in self.model.colors:
             # Handle polyline deselection
             original_color = self.model.colors[actor.polyline_id]
@@ -119,9 +127,13 @@ class i3vtkWidget(QWidget):
             return  # Ignore invalid actors
 
         self.selected_actor = None
-        
+
     def show_dialog(self, actor):
         """Displays or updates the dialog with polyline or point information."""
+
+        if self.model is None:
+            return
+
         if hasattr(actor, 'polyline_id'):
             # Handle polyline
             polyline_id = actor.polyline_id
@@ -130,41 +142,54 @@ class i3vtkWidget(QWidget):
             polyline_length = self.calculate_polyline_length(points)
 
             if self.polylineDialog is None:
-                self.polylineDialog = PolylineDialog(polyline_id, num_points, polyline_length, points)
-                self.polylineDialog.dialog_closed.connect(self.handle_dialog_closed)
+                self.polylineDialog = PolylineDialog(
+                    polyline_id, num_points, polyline_length, points)
+                self.polylineDialog.dialog_closed.connect(
+                    self.handle_dialog_closed)
 
+            # self.polylineDialog.setWindowFlags(Qt.WindowStaysOnTopHint)  # Force the dialog to stay on top
             self.polylineDialog.show()  # Keep it non-modal
             self.polylineDialog.reset_dialog()
-            self.polylineDialog.update_dialog(polyline_id, num_points, polyline_length, points)
+            self.polylineDialog.update_dialog(
+                polyline_id, num_points, polyline_length, points)
 
         elif hasattr(actor, 'point_id'):
             # Handle point
             point_id = actor.point_id
-            point_data = self.model.points[point_id]  # Assuming self.model.points stores point data
+            # Assuming self.model.points stores point data
+            point_data = self.model.points[point_id]
 
             if self.pointDialog is None:
                 self.pointDialog = PointDialog(point_id, *point_data[0])
-                self.pointDialog.dialog_closed.connect(self.handle_dialog_closed)
+                self.pointDialog.dialog_closed.connect(
+                    self.handle_dialog_closed)
 
+            # self.pointDialog.setWindowFlags(Qt.WindowStaysOnTopHint)  # Force the dialog to stay on top
             self.pointDialog.show()  # Keep it non-modal
             self.pointDialog.reset_dialog()
             self.pointDialog.update_dialog(point_id, *point_data[0])
 
     def hide_dialog(self):
         """Resets the dialog when a polyline is deselected."""
-        if self.dialog:
-            self.dialog.hide()
-
+        if self.polylineDialog:
+            self.polylineDialog.hide()
+        if self.pointDialog:
+            self.pointDialog.hide()
 
     def handle_dialog_closed(self):
         """Handle the dialog_closed signal to clean up the dialog reference."""
-        self.dialog = None  # Set the dialog reference to None
-        #print("Dialog closed and reference cleaned up.")
+        if self.polylineDialog:
+            self.polylineDialog = None
+        if self.pointDialog:
+            self.pointDialog = None
+        # print("Dialog closed and reference cleaned up.")
 
     def closeEvent(self, event):
         """Override closeEvent to close the dialog when the application is closed."""
-        if self.dialog is not None:
-            self.dialog.close()  # Close the dialog
+        if self.polylineDialog:
+            self.polylineDialog.close()
+        if self.pointDialog:
+            self.pointDialog.close()
         event.accept()  # Accept the close event
 
     def SetupWnd(self):
@@ -240,6 +265,7 @@ class i3vtkWidget(QWidget):
 
     def paintEvent(self, event) -> None:
         """Handle resize events to ensure the VTK render window matches the widget size."""
+        _ = event
         # Get the new size of the widget
         new_size = self.size()
 
@@ -376,7 +402,7 @@ class i3vtkWidget(QWidget):
 
     def OnFitView(self):
         if self.renderer is None:
-            raise RuntimeError("self.interactor could not be created.");
+            raise RuntimeError("self.interactor could not be created.")
         self.renderer.ResetCameraClippingRange()
         self.ResetCamera()
         self.UpdateView()

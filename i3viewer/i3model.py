@@ -2,7 +2,6 @@ import random
 import sqlite3
 
 import vtk
-from PySide6.QtGui import QStandardItem, QStandardItemModel
 import math
 import csv
 
@@ -57,7 +56,7 @@ class i3model:
 
         # Remove empty polylines
         self.polylines = {k: v for k, v in self.polylines.items() if v}
-    
+
     def polylines_read_table(self):
         """Fetch polylines grouped by polyline_id from the SQLite database."""
         conn = sqlite3.connect(self.file_path)
@@ -78,7 +77,7 @@ class i3model:
                 FROM polylines ORDER BY polyline_id, point_id
             """)
         data = cursor.fetchall()
-        
+
         conn.close()
 
         self.polylines = {}
@@ -86,7 +85,7 @@ class i3model:
             if polyline_id not in self.polylines:
                 self.polylines[polyline_id] = []
             self.polylines[polyline_id].append((x, y, z, g, *rest))
-        
+
     def polylines_create_actors(self):
         """Creates separate VTK actors for each polyline in self.polylines."""
         self.actors = []
@@ -134,17 +133,16 @@ class i3model:
         actor.SetMapper(mapper)
         actor.GetProperty().SetColor(color)
         actor.GetProperty().SetLineWidth(2.0)
-        actor.polyline_id = polyline_id
-
+        setattr(actor, "polyline_id", polyline_id)
         return actor
-        
+
     def polylines_get_actor(self, polyline_id):
         """Returns the VTK actor associated with the given polyline_id, or None if not found."""
         for actor in self.actors:
             if hasattr(actor, "polyline_id") and actor.polyline_id == polyline_id:
                 return actor
         return None
-            
+
     def polylines_save_database(self, db_path):
         """Saves the polylines data into the SQLite database."""
         conn = sqlite3.connect(db_path)
@@ -178,7 +176,7 @@ class i3model:
 
         for polyline_id, points in self.polylines.items():
             point_id = 1
-            for x, y, z, g, *rest in points:
+            for x, y, z, g, *_ in points:
                 cursor.execute(
                     "INSERT INTO polylines (polyline_id, point_id, X, Y, Z, gradient) VALUES (?, ?, ?, ?, ?, ?)",
                     (polyline_id, point_id, x, y, z, g),
@@ -187,7 +185,7 @@ class i3model:
 
         conn.commit()
         conn.close()
-        
+
     def points_format_actors(self, fromFile=True):
         """Executes the full pipeline."""
         if fromFile:
@@ -196,31 +194,31 @@ class i3model:
             self.points_read_table()
         self.points_create_actors()
         return self.actors
-        
+
     def points_get_actor(self, point_id):
         """Returns the VTK actor associated with the given point_id, or None if not found."""
         for actor in self.actors:
             if hasattr(actor, "point_id") and actor.point_id == point_id:
                 return actor
-        return None         
-    
+        return None
+
     def points_read_file(self):
         self.points = {}
         point_id = 1
-        
+
         with open(self.file_path, 'r', newline='', encoding='utf-8') as file:
             reader = csv.reader(file)
-            
+
             for row in reader:
                 if len(row) < 6:
                     continue  # Skip invalid lines
-                
+
                 try:
                     x = float(row[0])
                     y = float(row[1])
                     z = float(row[2])
                     name = row[5]
-                    
+
                     self.points[point_id] = [(x, y, z, name)]
                     point_id += 1
                 except ValueError:
@@ -228,7 +226,7 @@ class i3model:
 
     def points_read_table(self):
         pass
-    
+
     def points_create_actors(self):
         """Creates separate VTK actors for each point in self.points."""
         self.actors = []
@@ -252,7 +250,7 @@ class i3model:
         self.colors[point_id] = color
 
         # Insert points
-        for x, y, z, name in vertices:
+        for x, y, z, _ in vertices:
             vertex_id = points.InsertNextPoint(x, y, z)
             vertices_cell.InsertNextCell(1)
             vertices_cell.InsertCellPoint(vertex_id)
@@ -274,12 +272,9 @@ class i3model:
         actor.GetProperty().SetColor(color)
         actor.GetProperty().SetPointSize(5.0)
         actor.GetProperty().RenderPointsAsSpheresOn()  # Enable circular points
-        actor.point_id = point_id
-        
-        #print(actor.point_id)
-
+        setattr(actor, "point_id", point_id)
         return actor
-        
+
     def points_save_database(self, db_path):
         """Saves the polylines data into the SQLite database."""
         conn = sqlite3.connect(db_path)
@@ -309,7 +304,7 @@ class i3model:
                     VALUES (?, ?, ?, ?, ?)
                     """,
                     (point_id, x, y, z, name),
-                )      
+                )
 
         conn.commit()
         conn.close()
