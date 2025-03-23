@@ -1,4 +1,5 @@
 import sys
+import os
 
 from PySide6 import QtWidgets
 from PySide6.QtSql import QSqlDatabase, QSqlTableModel
@@ -91,7 +92,6 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
 
         if self.file_path is None:
             return
-
         base_name, _ = os.path.splitext(self.file_path)
         self.db_path = base_name + ".db"
 
