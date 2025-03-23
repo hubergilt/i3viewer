@@ -74,7 +74,7 @@ class i3vtkWidget(QWidget):
         if actor:
             if self.selected_actor == actor:
                 self.deselect_actor(actor)
-                # self.hide_dialog()
+                self.clear_dialog()
             else:
                 if self.selected_actor:
                     self.deselect_actor(self.selected_actor)
@@ -84,7 +84,7 @@ class i3vtkWidget(QWidget):
         else:
             if self.selected_actor:
                 self.deselect_actor(self.selected_actor)
-                # self.hide_dialog()
+                self.clear_dialog()
 
         self.UpdateView()
 
@@ -149,7 +149,7 @@ class i3vtkWidget(QWidget):
 
             # self.polylineDialog.setWindowFlags(Qt.WindowStaysOnTopHint)  # Force the dialog to stay on top
             self.polylineDialog.show()  # Keep it non-modal
-            self.polylineDialog.reset_dialog()
+            self.polylineDialog.clear_dialog()
             self.polylineDialog.update_dialog(
                 polyline_id, num_points, polyline_length, points)
 
@@ -166,7 +166,7 @@ class i3vtkWidget(QWidget):
 
             # self.pointDialog.setWindowFlags(Qt.WindowStaysOnTopHint)  # Force the dialog to stay on top
             self.pointDialog.show()  # Keep it non-modal
-            self.pointDialog.reset_dialog()
+            self.pointDialog.clear_dialog()
             self.pointDialog.update_dialog(point_id, *point_data[0])
 
     def hide_dialog(self):
@@ -175,6 +175,13 @@ class i3vtkWidget(QWidget):
             self.polylineDialog.hide()
         if self.pointDialog:
             self.pointDialog.hide()
+
+    def clear_dialog(self):
+        """Resets the dialog when a polyline is deselected."""
+        if self.polylineDialog:
+            self.polylineDialog.clear_dialog()
+        if self.pointDialog:
+            self.pointDialog.clear_dialog()
 
     def handle_dialog_closed(self):
         """Handle the dialog_closed signal to clean up the dialog reference."""

@@ -149,7 +149,7 @@ class NonModalDialog(QDialog, Ui_Dialog):
         # Adjust column widths to fit content
         self.tableWidget.resizeColumnsToContents()
 
-    def reset_dialog(self):
+    def clear_dialog(self):
         """Clear all QLineEdit fields and reset the QTableWidget."""
         # Clear QLineEdit fields
         self.lineEdit.clear()
@@ -164,6 +164,6 @@ class NonModalDialog(QDialog, Ui_Dialog):
         """Saves the dialog's geometry before closing."""
         self.settings.setValue("geometry", self.saveGeometry())
         """Override closeEvent to reset the dialog and emit a signal before closing."""
-        self.reset_dialog()  # Reset the dialog
+        self.clear_dialog()  # Reset the dialog
         self.dialog_closed.emit()  # Emit the custom signal
         event.accept()  # Accept the close event

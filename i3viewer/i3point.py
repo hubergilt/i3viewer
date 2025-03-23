@@ -22,16 +22,26 @@ class NonModalDialog(QDialog, Ui_Dialog):
 
         # Make all QLineEdit fields read-only and right-aligned
         self.lineEdit.setReadOnly(True)  # Selected Point ID
-        if hasattr(Qt, "AlignRight"):
-            self.lineEdit.setAlignment(getattr(Qt, "AlignRight"))
+        if hasattr(Qt, "AlignRight") and hasattr(Qt, "AlignVCenter"):
+            self.lineEdit.setAlignment(
+                getattr(Qt, "AlignRight") | getattr(Qt, "AlignVCenter")
+            )
             self.lineEdit_3.setReadOnly(True)  # X Coordinate
-            self.lineEdit_3.setAlignment(getattr(Qt, "AlignRight"))
+            self.lineEdit_3.setAlignment(
+                getattr(Qt, "AlignRight") | getattr(Qt, "AlignVCenter")
+            )
             self.lineEdit_2.setReadOnly(True)  # Y Coordinate
-            self.lineEdit_2.setAlignment(getattr(Qt, "AlignRight"))
+            self.lineEdit_2.setAlignment(
+                getattr(Qt, "AlignRight") | getattr(Qt, "AlignVCenter")
+            )
             self.lineEdit_4.setReadOnly(True)  # Z Coordinate
-            self.lineEdit_4.setAlignment(getattr(Qt, "AlignRight"))
+            self.lineEdit_4.setAlignment(
+                getattr(Qt, "AlignRight") | getattr(Qt, "AlignVCenter")
+            )
             self.lineEdit_5.setReadOnly(True)  # Name
-            self.lineEdit_5.setAlignment(getattr(Qt, "AlignRight"))
+            self.lineEdit_5.setAlignment(
+                getattr(Qt, "AlignRight") | getattr(Qt, "AlignVCenter")
+            )
 
         # Populate the fields with initial data
         self.update_dialog(point_id, x, y, z, name)
@@ -58,7 +68,7 @@ class NonModalDialog(QDialog, Ui_Dialog):
         self.lineEdit_4.setText(f"{z:.3f}")  # Z Coordinate (3 decimal places)
         self.lineEdit_5.setText(name)  # Name (text)
 
-    def reset_dialog(self):
+    def clear_dialog(self):
         """Clear all QLineEdit fields."""
         self.lineEdit.clear()  # Point ID
         self.lineEdit_3.clear()  # X Coordinate
@@ -70,6 +80,6 @@ class NonModalDialog(QDialog, Ui_Dialog):
         """Saves the dialog's geometry before closing."""
         self.settings.setValue("geometry", self.saveGeometry())
         """Override closeEvent to reset the dialog and emit a signal before closing."""
-        self.reset_dialog()  # Reset the dialog
+        self.clear_dialog()  # Reset the dialog
         self.dialog_closed.emit()  # Emit the custom signal
         event.accept()  # Accept the close event
