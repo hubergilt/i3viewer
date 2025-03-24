@@ -35,18 +35,25 @@ class i3vtkWidget(QWidget):
                 self.RemoveActor(actor)
         self.model = i3model(file_path)
 
-        if isPolylines:
-            self.actors = self.model.polylines_format_actors(fromFile)
+        if fromFile:
+            if isPolylines:
+                self.actors = self.model.polylines_format_actors(fromFile)
+                self.SetRepresentation(2)  # Surface with edges
+            else:
+                self.actors = self.model.points_format_actors(fromFile)
+                self.SetRepresentation(1)
         else:
-            self.actors = self.model.points_format_actors(fromFile)
-
-        for actor in self.actors:
-            self.AddActor(actor)
-
-        if isPolylines:
+            if self.model.hasPointsTable(file_path):
+                self.actors = self.model.points_format_actors(fromFile)
+            if self.model.hasPolylinesTable(file_path):
+                self.actors = self.model.polylines_format_actors(fromFile)
             self.SetRepresentation(2)  # Surface with edges
-        else:
-            self.SetRepresentation(1)
+
+        if self.actors:
+            for actor in self.actors:
+                self.AddActor(actor)
+
+        self.UpdateView()
 
     def update_polyline_data(self):
         if self.model:
@@ -61,7 +68,7 @@ class i3vtkWidget(QWidget):
             length += ((x2 - x1)**2 + (y2 - y1)**2 + (z2 - z1)**2) ** 0.5
         return round(length, 3)
 
-    def on_pick(self, obj, event): # pyright: ignore[reportUnusedVariable]
+    def on_pick(self, obj, event):  # pyright: ignore[reportUnusedVariable]
         """Handles picking an actor and updates selection and dialog accordingly."""
         _, _ = obj, event
         if self.interactor is None or self.renderer is None:

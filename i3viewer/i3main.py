@@ -95,7 +95,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         base_name, _ = os.path.splitext(self.file_path)
         self.db_path = base_name + ".db"
 
-        self.vtkWidget.import_file(self.file_path)
+        self.vtkWidget.import_file(self.file_path, fromFile=True, isPolylines=True)
 
         self.treeview_setup()
 
@@ -112,7 +112,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         base_name, _ = os.path.splitext(self.file_path)
         self.db_path = base_name + ".db"
 
-        self.vtkWidget.import_file(self.file_path, isPolylines=False)
+        self.vtkWidget.import_file(self.file_path, fromFile=True, isPolylines=False)
 
         self.treeview_setup()
 
@@ -124,7 +124,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
     def open_db_file(self):
         self.db_path = self.file_path
 
-        self.vtkWidget.import_file(self.db_path, False)
+        self.vtkWidget.import_file(self.db_path, fromFile=False, isPolylines=False)
 
         self.treeview_setup()
 
@@ -132,7 +132,12 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             f"Imported data from the file {self.db_path}."
         )
         self.tableview_release()
-        self.tableview_setup_polylines()
+
+        if self.vtkWidget.model:
+            if self.vtkWidget.model.hasPointsTable(self.db_path):
+                self.tableview_setup_points()
+            if self.vtkWidget.model.hasPolylinesTable(self.db_path):
+                self.tableview_setup_polylines()
 
     def isDatabase(self):
         if self.file_path:
@@ -511,7 +516,8 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
     def on_tab_changed(self, index):
         """Handle tab change events."""
         if index == 0 and self.vtkWidget and self.isDatabase():  # First tab (VTK widget)
-            self.vtkWidget.update_polyline_data()
+            pass
+            #self.vtkWidget.update_polyline_data()
 
     def setup_context_menu(self):
         # Create a context menu

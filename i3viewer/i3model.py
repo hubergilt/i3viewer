@@ -225,7 +225,25 @@ class i3model:
                     continue  # Skip lines with conversion errors
 
     def points_read_table(self):
-        pass
+        conn = sqlite3.connect(self.file_path)
+        cursor = conn.cursor()
+
+        # Query for points
+        cursor.execute(
+            """
+            SELECT point_id, X, Y, Z, name
+            FROM points ORDER BY point_id
+            """
+        )
+
+        data = cursor.fetchall()
+        conn.close()
+
+        for point_id, x, y, z, name in data:
+            if point_id not in self.points:
+                self.points[point_id] = []
+            self.points[point_id].append((x, y, z, name))
+
 
     def points_create_actors(self):
         """Creates separate VTK actors for each point in self.points."""
@@ -308,3 +326,46 @@ class i3model:
 
         conn.commit()
         conn.close()
+
+    def hasPolylinesTable(self, db_path):
+        return self.table_exists(db_path, "polylines")
+
+    def hasPointsTable(self, db_path):
+        return self.table_exists(db_path, "points")
+
+    def table_exists(self, db_path, table_name):
+        """
+        Check if the 'polylines' table exists in the SQLite database.
+
+        Args:
+            db_path (str): Path to the SQLite database file.
+
+        Returns:
+            bool: True if the 'polylines' table exists, False otherwise.
+        """
+        try:
+            # Connect to the database
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+
+            # Query the sqlite_master table for the specified table
+            cursor.execute(
+                """
+                SELECT name FROM sqlite_master
+                WHERE type='table' AND name=?
+                """,
+                (table_name,)
+            )
+
+            # Fetch the result
+            result = cursor.fetchone()
+
+            # Close the connection
+            conn.close()
+
+            # If result is not None, the table exists
+            return result is not None
+
+        except sqlite3.Error as e:
+            print(f"An error occurred while checking for the 'polylines' table: {e}")
+            return False
