@@ -4,6 +4,7 @@ import sqlite3
 import vtk
 import math
 import csv
+import sys
 
 class i3model:
     def __init__(self, file_path):
@@ -268,13 +269,16 @@ class i3model:
         self.colors[point_id] = color
 
         # Insert points
-        for x, y, z, _ in vertices:
-            vertex_id = points.InsertNextPoint(x, y, z)
-            vertices_cell.InsertNextCell(1)
-            vertices_cell.InsertCellPoint(vertex_id)
+        x, y, z, _ = vertices[0]
+        vertex_id = points.InsertNextPoint(x, y, z)
+        vertices_cell.InsertNextCell(1)
+        vertices_cell.InsertCellPoint(vertex_id)
 
         # Create and configure point actor
-        return self.point_build_actor(points, vertices_cell, color, point_id)
+        if sys.platform.startswith('win'):
+            return self.point_build_actor_win(points, vertices_cell, color, point_id)
+        else:
+            return self.point_build_actor(points, vertices_cell, color, point_id)
 
     def point_build_actor(self, points, vertices_cell, color, point_id):
         """Helper function to construct and return a VTK actor for points."""
@@ -290,7 +294,51 @@ class i3model:
         actor.GetProperty().SetColor(color)
         actor.GetProperty().SetPointSize(5.0)
         actor.GetProperty().RenderPointsAsSpheresOn()  # Enable circular points
+
         setattr(actor, "point_id", point_id)
+        return actor
+
+    def point_build_actor_win(self, points, vertices_cell, color, point_id):
+        # Create polydata
+        poly_data = vtk.vtkPolyData()
+        poly_data.SetPoints(points)
+        poly_data.SetVerts(vertices_cell)
+
+        # Create a sphere source for glyphing
+        sphere = vtk.vtkSphereSource()
+        sphere.SetRadius(24)  # Size of each sphere
+        sphere.SetThetaResolution(8)
+        sphere.SetPhiResolution(8)
+
+        # Create glyph3D filter
+        glyph = vtk.vtkGlyph3D()
+        glyph.SetInputData(poly_data)
+        glyph.SetSourceConnection(sphere.GetOutputPort())
+        glyph.SetScaleModeToDataScalingOff()
+
+        # Mapper
+        mapper = vtk.vtkPolyDataMapper()
+        mapper.SetInputConnection(glyph.GetOutputPort())
+
+        # Actor
+        actor = vtk.vtkActor()
+        actor.SetMapper(mapper)
+        actor.GetProperty().SetColor(color)
+        actor.GetProperty().SetOpacity(1.0)
+
+        # Custom point ID attribute
+        setattr(actor, "point_id", point_id)
+        setattr(actor, "sphere_source", sphere)
+
+        return actor
+
+    def point_select(self, actor, radius):
+        if radius:
+            # Check if the actor has a sphere_source attribute
+            if hasattr(actor, "sphere_source"):
+                sphere = getattr(actor, "sphere_source")
+                sphere.SetRadius(radius)
+                sphere.Modified()
         return actor
 
     def points_save_database(self, db_path):

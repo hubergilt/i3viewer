@@ -109,6 +109,7 @@ class i3vtkWidget(QWidget):
             # Handle point selection
             actor.GetProperty().SetColor(1, 1, 0)  # Yellow color
             actor.GetProperty().SetPointSize(10.0)  # Increase point size for selection
+            actor = self.model.point_select(actor, 48)
         else:
             return  # Ignore invalid actors
 
@@ -130,6 +131,7 @@ class i3vtkWidget(QWidget):
             original_color = self.model.colors[actor.point_id]
             actor.GetProperty().SetColor(original_color)
             actor.GetProperty().SetPointSize(5.0)  # Restore original point size
+            self.model.point_select(actor, 24)
         else:
             return  # Ignore invalid actors
 

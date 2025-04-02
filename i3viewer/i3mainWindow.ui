@@ -164,6 +164,7 @@
    </attribute>
    <addaction name="actionOpenFile"/>
    <addaction name="actionExport"/>
+   <addaction name="actionPlus"/>
    <addaction name="separator"/>
    <addaction name="actionHelp"/>
    <addaction name="separator"/>
@@ -324,6 +325,15 @@
    </property>
    <property name="toolTip">
     <string>Export</string>
+   </property>
+  </action>
+  <action name="actionPlus">
+   <property name="icon">
+    <iconset resource="icons.qrc">
+     <normaloff>:/icons/plus.svg</normaloff>:/icons/plus.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Plus</string>
    </property>
   </action>
  </widget>
