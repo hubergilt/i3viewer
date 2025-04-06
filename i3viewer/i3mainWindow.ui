@@ -138,6 +138,8 @@
      <string>File</string>
     </property>
     <addaction name="actionOpenFile"/>
+    <addaction name="actionPlus"/>
+    <addaction name="actionMinus"/>
     <addaction name="actionExport"/>
     <addaction name="separator"/>
     <addaction name="actionHelp"/>
@@ -163,8 +165,9 @@
     <bool>false</bool>
    </attribute>
    <addaction name="actionOpenFile"/>
-   <addaction name="actionExport"/>
    <addaction name="actionPlus"/>
+   <addaction name="actionMinus"/>
+   <addaction name="actionExport"/>
    <addaction name="separator"/>
    <addaction name="actionHelp"/>
    <addaction name="separator"/>
@@ -333,7 +336,19 @@
      <normaloff>:/icons/plus.svg</normaloff>:/icons/plus.svg</iconset>
    </property>
    <property name="text">
-    <string>Plus</string>
+    <string>Append File...</string>
+   </property>
+  </action>
+  <action name="actionMinus">
+   <property name="icon">
+    <iconset resource="icons.qrc">
+     <normaloff>:/icons/minus.svg</normaloff>:/icons/minus.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Close all</string>
+   </property>
+   <property name="toolTip">
+    <string>Close all</string>
    </property>
   </action>
  </widget>

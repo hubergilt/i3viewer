@@ -1,5 +1,6 @@
 <RCC>
   <qresource prefix="/">
+    <file>icons/minus.svg</file>
     <file>icons/plus.svg</file>
     <file>icons/srg.svg</file>
     <file>icons/exit.svg</file>

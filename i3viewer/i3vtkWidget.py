@@ -15,7 +15,7 @@ class i3vtkWidget(QWidget):
         self.renderer = None
         self.interactor = None
         self.model = None
-        self.actors = None
+        self.actors = []
         self.TrihedronPos = 1
         self.selected_actor = None
         self.polylineDialog = PolylineDialog(0, 0, 0, [])
@@ -29,25 +29,27 @@ class i3vtkWidget(QWidget):
         self.ShowEdges = False
         self.SetupWnd()
 
-    def import_file(self, file_path, fromFile=True, isPolylines=True):
-        if self.actors:
-            for actor in self.actors:
-                self.RemoveActor(actor)
+    def import_file(self, file_path, fromFile=True, isPolylines=True, newFile=True):
+
+        actors = []
+        if newFile:
+            self.RemoveAll()
+            self.actors = []
+
         self.model = i3model(file_path)
 
         if fromFile:
             if isPolylines:
-                self.actors = self.model.polylines_format_actors(fromFile)
-                self.SetRepresentation(2)  # Surface with edges
+                actors = self.model.polylines_format_actors(fromFile)
             else:
-                self.actors = self.model.points_format_actors(fromFile)
-                self.SetRepresentation(1)
+                actors = self.model.points_format_actors(fromFile)
         else:
             if self.model.hasPointsTable(file_path):
-                self.actors = self.model.points_format_actors(fromFile)
+                actors = self.model.points_format_actors(fromFile)
             if self.model.hasPolylinesTable(file_path):
-                self.actors = self.model.polylines_format_actors(fromFile)
-            self.SetRepresentation(2)  # Surface with edges
+                actors = self.model.polylines_format_actors(fromFile)
+
+        self.actors.extend(actors)
 
         if self.actors:
             for actor in self.actors:
@@ -55,9 +57,11 @@ class i3vtkWidget(QWidget):
 
         self.UpdateView()
 
-    def update_polyline_data(self):
-        if self.model:
-            self.model.polylines_read_table()
+    def RemoveAll(self):
+        if self.actors:
+            for actor in self.actors:
+                self.RemoveActor(actor)
+        self.UpdateView()
 
     def calculate_polyline_length(self, polyline):
         """Calculates the total length of a polyline."""
@@ -108,8 +112,7 @@ class i3vtkWidget(QWidget):
         elif hasattr(actor, 'point_id') and actor.point_id in self.model.points:
             # Handle point selection
             actor.GetProperty().SetColor(1, 1, 0)  # Yellow color
-            actor.GetProperty().SetPointSize(10.0)  # Increase point size for selection
-            actor = self.model.point_select(actor, 48)
+            actor = self.model.point_select(actor, 30)
         else:
             return  # Ignore invalid actors
 
@@ -130,8 +133,7 @@ class i3vtkWidget(QWidget):
             # Handle point deselection
             original_color = self.model.colors[actor.point_id]
             actor.GetProperty().SetColor(original_color)
-            actor.GetProperty().SetPointSize(5.0)  # Restore original point size
-            self.model.point_select(actor, 24)
+            self.model.point_select(actor, 20)
         else:
             return  # Ignore invalid actors
 

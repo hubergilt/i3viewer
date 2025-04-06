@@ -11,7 +11,7 @@ class i3model:
         self.file_path = file_path
         self.polylines = {}
         self.points = {}
-        #self.poly_data = vtk.vtkPolyData()
+
         self.actors = []
         self.colors = {}
 
@@ -21,8 +21,7 @@ class i3model:
             self.polylines_read_file()
         else:
             self.polylines_read_table()
-        self.polylines_create_actors()
-        return self.actors
+        return self.polylines_create_actors()
 
     def polylines_read_file(self):
         """Reads the XYZ file and stores polylines with gradient values (multiplied by 100)."""
@@ -97,6 +96,8 @@ class i3model:
             if actor:
                 self.actors.append(actor)
 
+        return self.actors
+
     def polylines_create_actor(self, polyline_id, vertices):
         """Creates a VTK actor for a given polyline."""
         if not vertices:
@@ -132,8 +133,9 @@ class i3model:
 
         actor = vtk.vtkActor()
         actor.SetMapper(mapper)
+        actor.GetProperty().SetRepresentationToWireframe()
         actor.GetProperty().SetColor(color)
-        actor.GetProperty().SetLineWidth(2.0)
+        actor.GetProperty().SetLineWidth(2)
         setattr(actor, "polyline_id", polyline_id)
         return actor
 
@@ -193,8 +195,7 @@ class i3model:
             self.points_read_file()
         else:
             self.points_read_table()
-        self.points_create_actors()
-        return self.actors
+        return self.points_create_actors()
 
     def points_get_actor(self, point_id):
         """Returns the VTK actor associated with the given point_id, or None if not found."""
@@ -256,6 +257,8 @@ class i3model:
             if actor:
                 self.actors.append(actor)
 
+        return self.actors
+
     def point_create_actor(self, point_id, vertices):
         """Creates a VTK actor for a given point."""
         if not vertices:
@@ -291,8 +294,10 @@ class i3model:
 
         actor = vtk.vtkActor()
         actor.SetMapper(mapper)
+        actor.GetProperty().SetRepresentationToPoints()
         actor.GetProperty().SetColor(color)
         actor.GetProperty().SetPointSize(5.0)
+        actor.GetProperty().SetOpacity(1.0)
         actor.GetProperty().RenderPointsAsSpheresOn()  # Enable circular points
 
         setattr(actor, "point_id", point_id)
@@ -306,9 +311,9 @@ class i3model:
 
         # Create a sphere source for glyphing
         sphere = vtk.vtkSphereSource()
-        sphere.SetRadius(24)  # Size of each sphere
-        sphere.SetThetaResolution(8)
-        sphere.SetPhiResolution(8)
+        sphere.SetRadius(20)  # Size of each sphere
+        sphere.SetThetaResolution(20)
+        sphere.SetPhiResolution(20)
 
         # Create glyph3D filter
         glyph = vtk.vtkGlyph3D()
@@ -323,7 +328,9 @@ class i3model:
         # Actor
         actor = vtk.vtkActor()
         actor.SetMapper(mapper)
+        #actor.GetProperty().SetRepresentationToPoints()
         actor.GetProperty().SetColor(color)
+        actor.GetProperty().SetPointSize(5.0)
         actor.GetProperty().SetOpacity(1.0)
 
         # Custom point ID attribute

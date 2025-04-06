@@ -25,11 +25,12 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         self.file_path = None
         self.db_file = None
         self.db_path = None
+        self.base_name = None
         self.db = None
         self.polyline_item = None
+        self.tree_model = None
         self.tableModel = None
 
-        self.tabWidget.currentChanged.connect(self.on_tab_changed)
         self.setup_context_menu()
 
         if hasattr(Qt, "CustomContextMenu"):
@@ -40,6 +41,8 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
     def connect_actions(self):
         """Connect UI actions to their respective functions."""
         self.actionOpenFile.triggered.connect(self.on_open_file)
+        self.actionPlus.triggered.connect(self.on_append_file)
+        self.actionMinus.triggered.connect(self.on_clear)
         self.actionExport.triggered.connect(self.on_export)
         self.actionHelp.triggered.connect(self.on_help)
         self.actionExit.triggered.connect(self.on_exit)
@@ -56,10 +59,17 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         """Handle the 'Open File' action for .xyz files."""
         # Open a file dialog to select an .xyz file
         file_dialog = QtWidgets.QFileDialog(self)
-        # Set to home directory
-        # Get user's home directory cross-platform
-        home_dir = os.path.expanduser("~")
-        file_dialog.setDirectory(home_dir)
+        if hasattr(QtWidgets.QFileDialog, "Accept"):
+            file_dialog.setLabelText(getattr(QtWidgets.QFileDialog, "Accept"), "Open New")
+
+        if self.base_name:
+            file_dialog.setDirectory(self.base_name)
+        else:
+            # Set to home directory
+            # Get user's home directory cross-platform
+            home_dir = os.path.expanduser("~")
+            file_dialog.setDirectory(home_dir)
+
         file_dialog.setNameFilter("XYZ Files (*.xyz);;SQLite Files (*.db);;SRG Files (*.srg)")
 
         if hasattr(QtWidgets.QFileDialog, "ExistingFile"):
@@ -69,6 +79,8 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             selected_files = file_dialog.selectedFiles()
             if selected_files:
                 self.file_path = selected_files[0]
+                self.base_name, _ = os.path.splitext(self.file_path)
+                self.on_clear()
 
                 if self.vtkWidget:
                     self.vtkWidget.hide_dialog()
@@ -77,9 +89,9 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
                 self.tabWidget.setCurrentIndex(0)  # Index 0 corresponds to the second tab
 
                 if self.file_path.endswith(".xyz"):
-                    self.open_xyz_file()
+                    self.open_xyz_file(openNew=True)
                 elif self.file_path.endswith(".srg"):
-                    self.open_srg_file()
+                    self.open_srg_file(openNew=True)
                 elif self.file_path.endswith(".db"):
                     self.open_db_file()
                 else:
@@ -88,14 +100,14 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
                     )
 
 
-    def open_xyz_file(self):
+    def open_xyz_file(self, openNew=True):
 
-        if self.file_path is None:
+        if self.file_path is None or self.base_name is None:
             return
-        base_name, _ = os.path.splitext(self.file_path)
-        self.db_path = base_name + ".db"
 
-        self.vtkWidget.import_file(self.file_path, fromFile=True, isPolylines=True)
+        self.db_path = self.base_name + ".db"
+
+        self.vtkWidget.import_file(self.file_path, fromFile=True, isPolylines=True, newFile=openNew)
 
         self.treeview_setup()
 
@@ -104,7 +116,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         )
         self.tableview_release()
 
-    def open_srg_file(self):
+    def open_srg_file(self, openNew=True):
 
         if self.file_path is None:
             return
@@ -112,7 +124,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         base_name, _ = os.path.splitext(self.file_path)
         self.db_path = base_name + ".db"
 
-        self.vtkWidget.import_file(self.file_path, fromFile=True, isPolylines=False)
+        self.vtkWidget.import_file(self.file_path, fromFile=True, isPolylines=False, newFile=openNew)
 
         self.treeview_setup()
 
@@ -139,16 +151,23 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             if self.vtkWidget.model.hasPolylinesTable(self.db_path):
                 self.tableview_setup_polylines()
 
-    def isDatabase(self):
+    def is_db_file(self):
         if self.file_path:
             if self.file_path.endswith(".db"):
                 return True
             else:
                 return False
 
-    def isPolylines(self):
+    def is_xyz_file(self):
         if self.file_path:
             if self.file_path.endswith(".xyz"):
+                return True
+            else:
+                return False
+
+    def is_srg_file(self):
+        if self.file_path:
+            if self.file_path.endswith(".srg"):
                 return True
             else:
                 return False
@@ -160,30 +179,34 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
 
         model = self.vtkWidget.model
         if model:
-            tree_model = QStandardItemModel()
+            if self.tree_model is None:
+                self.tree_model = QStandardItemModel()
+
             root_item = QStandardItem(f"{self.file_path}")
             header_label = self.file_path
             polyline_count = len(model.polylines)
             point_count = len(model.points)
 
-            if self.isDatabase():
+            if self.is_db_file():
                 root_item.setIcon(QIcon(u":/icons/db.svg"))  # Set icon for the root node
                 self.treeview_populate_polylines(model, root_item)
                 self.treeview_populate_points(model, root_item)
                 header_label += f"({polyline_count}) polylines\n"
                 header_label += f"({point_count}) points\n"
-            elif self.isPolylines():
+            elif self.is_xyz_file():
                 root_item.setIcon(QIcon(u":/icons/xyz.svg"))  # Set icon for the root node
                 self.treeview_populate_polylines(model, root_item)
                 header_label += f"({polyline_count}) polylines\n"
-            else:
+            elif self.is_srg_file():
                 root_item.setIcon(QIcon(u":/icons/srg.svg"))  # Set icon for the root node
                 self.treeview_populate_points(model, root_item)
                 header_label += f"({point_count}) points\n"
+            else:
+                return
 
-            tree_model.appendRow(root_item)
-            tree_model.setHorizontalHeaderLabels([self.file_path])
-            self.treeView.setModel(tree_model)
+            self.tree_model.appendRow(root_item)
+            self.tree_model.setHorizontalHeaderLabels([self.file_path])
+            self.treeView.setModel(self.tree_model)
             # This line makes the treeview non-editable.
             if hasattr(QTreeView, "NoEditTriggers"):
                 self.treeView.setEditTriggers(getattr(QTreeView, "NoEditTriggers"))
@@ -220,6 +243,12 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
                 root_item.appendRow(point_item)
             #root_item.appendRow(points_root)
 
+    def on_clear(self):
+        if self.vtkWidget:
+            self.vtkWidget.RemoveAll()
+            self.tree_model = QStandardItemModel()
+            self.treeView.setModel(self.tree_model)
+
     def on_export(self):
         """Handle the 'Save' action."""
 
@@ -231,7 +260,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             QMessageBox.warning(
                 self,
                 "Invalid File",
-                "Please open a valid .xyz file before saving into the database."
+                "Please open a valid .xyz or .srg file before saving into the database."
             )
             return
 
@@ -267,6 +296,49 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
                 "The data has been successfully saved to the database.",
                 getattr(QMessageBox, "Ok")
             )
+
+    def on_append_file(self):
+        """Handle the 'Open File' action for .xyz files."""
+        # Open a file dialog to select an .xyz file
+        file_dialog = QtWidgets.QFileDialog(self)
+
+        if hasattr(QtWidgets.QFileDialog, "Accept"):
+            file_dialog.setLabelText(getattr(QtWidgets.QFileDialog, "Accept"), "Append")
+
+        if self.base_name:
+            file_dialog.setDirectory(self.base_name)
+        else:
+            # Set to home directory
+            # Get user's home directory cross-platform
+            home_dir = os.path.expanduser("~")
+            file_dialog.setDirectory(home_dir)
+
+        file_dialog.setNameFilter("XYZ Files (*.xyz);;SRG Files (*.srg)")
+        #file_dialog.setNameFilter("XYZ Files (*.xyz);;SQLite Files (*.db);;SRG Files (*.srg)")
+
+        if hasattr(QtWidgets.QFileDialog, "ExistingFile"):
+            file_dialog.setFileMode(getattr(QtWidgets.QFileDialog,"ExistingFile"))
+
+        if file_dialog.exec():
+            selected_files = file_dialog.selectedFiles()
+            if selected_files:
+                self.file_path = selected_files[0]
+                self.base_name, _ = os.path.splitext(self.file_path)
+
+                #if self.vtkWidget:
+                #    self.vtkWidget.hide_dialog()
+
+                # Switch to the second tab of the tabWidget
+                self.tabWidget.setCurrentIndex(0)  # Index 0 corresponds to the second tab
+
+                if self.file_path.endswith(".xyz"):
+                    self.open_xyz_file(openNew=False)
+                elif self.file_path.endswith(".srg"):
+                    self.open_srg_file(openNew=False)
+                else:
+                    QMessageBox.warning(
+                        self, "Invalid File", "Please select a valid file."
+                    )
 
     def tableview_setup_polylines(self):
         # Check if the database is already connected
@@ -512,12 +584,6 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         if self.vtkWidget:
             self.vtkWidget.close()  # Close the dialog
         event.accept()  # Accept the close event
-
-    def on_tab_changed(self, index):
-        """Handle tab change events."""
-        if index == 0 and self.vtkWidget and self.isDatabase():  # First tab (VTK widget)
-            pass
-            #self.vtkWidget.update_polyline_data()
 
     def setup_context_menu(self):
         # Create a context menu
