@@ -36,7 +36,10 @@ class i3vtkWidget(QWidget):
             self.RemoveAll()
             self.actors = []
 
-        self.model = i3model(file_path)
+        if self.model is None:
+            self.model = i3model(file_path)
+        else:
+            self.model.file_path = file_path
 
         if fromFile:
             if isPolylines:
@@ -79,6 +82,7 @@ class i3vtkWidget(QWidget):
             return
 
         click_pos = self.interactor.GetEventPosition()
+
         self.picker.Pick(click_pos[0], click_pos[1], 0, self.renderer)
         actor = self.picker.GetActor()
 
@@ -121,17 +125,20 @@ class i3vtkWidget(QWidget):
     def deselect_actor(self, actor):
         """Deselect the given actor (point or polyline) by restoring its original color and size."""
 
-        if self.model is None or not hasattr(self.model, "colors"):
+        if self.model is None:
             return
 
-        if hasattr(actor, 'polyline_id') and actor.polyline_id in self.model.colors:
+        if hasattr(actor, "polyline_id") and hasattr(actor, "color"):
             # Handle polyline deselection
-            original_color = self.model.colors[actor.polyline_id]
+            # original_color = self.model.colors[actor.polyline_id]
+            original_color = getattr(actor, "color")
             actor.GetProperty().SetColor(original_color)
             actor.GetProperty().SetLineWidth(2.0)
-        elif hasattr(actor, 'point_id') and actor.point_id in self.model.colors:
+        elif hasattr(actor, "point_id") and hasattr(actor, "color"):
             # Handle point deselection
-            original_color = self.model.colors[actor.point_id]
+            # original_color = self.model.colors[actor.point_id]
+            original_color = getattr(actor, "color")
+            actor.GetProperty().SetColor(original_color)
             actor.GetProperty().SetColor(original_color)
             self.model.point_select(actor, 20)
         else:
@@ -237,7 +244,7 @@ class i3vtkWidget(QWidget):
 
         # Create picker
         self.picker = vtk.vtkCellPicker()
-        self.picker.SetTolerance(0.01)
+        self.picker.SetTolerance(0.005)
         self.interactor.SetPicker(self.picker)
 
         # Attach the picker event to the interactor

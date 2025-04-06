@@ -13,7 +13,7 @@ class i3model:
         self.points = {}
 
         self.actors = []
-        self.colors = {}
+        #self.colors = {}
 
     def polylines_format_actors(self, fromFile=True):
         """Executes the full pipeline."""
@@ -89,7 +89,7 @@ class i3model:
     def polylines_create_actors(self):
         """Creates separate VTK actors for each polyline in self.polylines."""
         self.actors = []
-        self.colors = {}
+        #self.colors = {}
 
         for polyline_id, vertices in self.polylines.items():
             actor = self.polylines_create_actor(polyline_id, vertices)
@@ -110,7 +110,7 @@ class i3model:
 
         # Generate and store a random color for this polyline
         color = [random.randint(0, 255) / 255.0 for _ in range(3)]
-        self.colors[polyline_id] = color
+        #self.colors[polyline_id] = color
 
         # Insert points and define polyline connectivity
         for i, (x, y, z, *_) in enumerate(vertices):
@@ -137,6 +137,7 @@ class i3model:
         actor.GetProperty().SetColor(color)
         actor.GetProperty().SetLineWidth(2)
         setattr(actor, "polyline_id", polyline_id)
+        setattr(actor, "color", color)
         return actor
 
     def polylines_get_actor(self, polyline_id):
@@ -250,7 +251,7 @@ class i3model:
     def points_create_actors(self):
         """Creates separate VTK actors for each point in self.points."""
         self.actors = []
-        self.colors = {}
+        #self.colors = {}
 
         for point_id, vertices in self.points.items():
             actor = self.point_create_actor(point_id, vertices)
@@ -269,7 +270,7 @@ class i3model:
 
         # Generate and store a random color for this point
         color = [random.randint(0, 255) / 255.0 for _ in range(3)]
-        self.colors[point_id] = color
+        #self.colors[point_id] = color
 
         # Insert points
         x, y, z, _ = vertices[0]
@@ -282,26 +283,6 @@ class i3model:
             return self.point_build_actor_win(points, vertices_cell, color, point_id)
         else:
             return self.point_build_actor(points, vertices_cell, color, point_id)
-
-    def point_build_actor(self, points, vertices_cell, color, point_id):
-        """Helper function to construct and return a VTK actor for points."""
-        poly_data = vtk.vtkPolyData()
-        poly_data.SetPoints(points)
-        poly_data.SetVerts(vertices_cell)
-
-        mapper = vtk.vtkPolyDataMapper()
-        mapper.SetInputData(poly_data)
-
-        actor = vtk.vtkActor()
-        actor.SetMapper(mapper)
-        actor.GetProperty().SetRepresentationToPoints()
-        actor.GetProperty().SetColor(color)
-        actor.GetProperty().SetPointSize(5.0)
-        actor.GetProperty().SetOpacity(1.0)
-        actor.GetProperty().RenderPointsAsSpheresOn()  # Enable circular points
-
-        setattr(actor, "point_id", point_id)
-        return actor
 
     def point_build_actor_win(self, points, vertices_cell, color, point_id):
         # Create polydata
@@ -335,8 +316,30 @@ class i3model:
 
         # Custom point ID attribute
         setattr(actor, "point_id", point_id)
+        setattr(actor, "color", color)
         setattr(actor, "sphere_source", sphere)
 
+        return actor
+
+    def point_build_actor(self, points, vertices_cell, color, point_id):
+        """Helper function to construct and return a VTK actor for points."""
+        poly_data = vtk.vtkPolyData()
+        poly_data.SetPoints(points)
+        poly_data.SetVerts(vertices_cell)
+
+        mapper = vtk.vtkPolyDataMapper()
+        mapper.SetInputData(poly_data)
+
+        actor = vtk.vtkActor()
+        actor.SetMapper(mapper)
+        actor.GetProperty().SetRepresentationToPoints()
+        actor.GetProperty().SetColor(color)
+        actor.GetProperty().SetPointSize(8.0)
+        actor.GetProperty().SetOpacity(1.0)
+        actor.GetProperty().RenderPointsAsSpheresOn()  # Enable circular points
+
+        setattr(actor, "point_id", point_id)
+        setattr(actor, "color", color)
         return actor
 
     def point_select(self, actor, radius):
