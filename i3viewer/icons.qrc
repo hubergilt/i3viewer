@@ -1,6 +1,7 @@
 <RCC>
   <qresource prefix="/">
     <file>icons/heatmap.svg</file>
+    <file>icons/3dviewer.ico</file>
     <file>icons/minus.svg</file>
     <file>icons/plus.svg</file>
     <file>icons/srg.svg</file>

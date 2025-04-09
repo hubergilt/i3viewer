@@ -1,0 +1,245 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>Dialog</class>
+ <widget class="QDialog" name="Dialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>400</width>
+    <height>300</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Dialog</string>
+  </property>
+  <layout class="QHBoxLayout" name="horizontalLayout">
+   <item>
+    <widget class="QTableWidget" name="tableWidget">
+     <row>
+      <property name="text">
+       <string/>
+      </property>
+      <property name="icon">
+       <iconset resource="icons.qrc">
+        <normaloff>:/icons/open.svg</normaloff>:/icons/open.svg</iconset>
+      </property>
+     </row>
+     <row>
+      <property name="text">
+       <string/>
+      </property>
+      <property name="icon">
+       <iconset resource="icons.qrc">
+        <normaloff>:/icons/plus.svg</normaloff>:/icons/plus.svg</iconset>
+      </property>
+     </row>
+     <row>
+      <property name="text">
+       <string/>
+      </property>
+      <property name="icon">
+       <iconset resource="icons.qrc">
+        <normaloff>:/icons/minus.svg</normaloff>:/icons/minus.svg</iconset>
+      </property>
+     </row>
+     <row>
+      <property name="text">
+       <string/>
+      </property>
+      <property name="icon">
+       <iconset resource="icons.qrc">
+        <normaloff>:/icons/export.svg</normaloff>:/icons/export.svg</iconset>
+      </property>
+     </row>
+     <row>
+      <property name="text">
+       <string/>
+      </property>
+      <property name="icon">
+       <iconset resource="icons.qrc">
+        <normaloff>:/icons/help.svg</normaloff>:/icons/help.svg</iconset>
+      </property>
+     </row>
+     <row>
+      <property name="text">
+       <string/>
+      </property>
+      <property name="icon">
+       <iconset resource="icons.qrc">
+        <normaloff>:/icons/exit.svg</normaloff>:/icons/exit.svg</iconset>
+      </property>
+     </row>
+     <row>
+      <property name="text">
+       <string/>
+      </property>
+      <property name="icon">
+       <iconset resource="icons.qrc">
+        <normaloff>:/icons/front.svg</normaloff>:/icons/front.svg</iconset>
+      </property>
+     </row>
+     <row>
+      <property name="text">
+       <string/>
+      </property>
+      <property name="icon">
+       <iconset resource="icons.qrc">
+        <normaloff>:/icons/back.svg</normaloff>:/icons/back.svg</iconset>
+      </property>
+     </row>
+     <row>
+      <property name="text">
+       <string/>
+      </property>
+      <property name="icon">
+       <iconset resource="icons.qrc">
+        <normaloff>:/icons/top.svg</normaloff>:/icons/top.svg</iconset>
+      </property>
+     </row>
+     <row>
+      <property name="text">
+       <string/>
+      </property>
+      <property name="icon">
+       <iconset resource="icons.qrc">
+        <normaloff>:/icons/bottom.svg</normaloff>:/icons/bottom.svg</iconset>
+      </property>
+     </row>
+     <row>
+      <property name="text">
+       <string/>
+      </property>
+      <property name="icon">
+       <iconset resource="icons.qrc">
+        <normaloff>:/icons/left.svg</normaloff>:/icons/left.svg</iconset>
+      </property>
+     </row>
+     <row>
+      <property name="text">
+       <string/>
+      </property>
+      <property name="icon">
+       <iconset resource="icons.qrc">
+        <normaloff>:/icons/right.svg</normaloff>:/icons/right.svg</iconset>
+      </property>
+     </row>
+     <row>
+      <property name="text">
+       <string/>
+      </property>
+      <property name="icon">
+       <iconset resource="icons.qrc">
+        <normaloff>:/icons/iso.svg</normaloff>:/icons/iso.svg</iconset>
+      </property>
+     </row>
+     <row>
+      <property name="text">
+       <string/>
+      </property>
+      <property name="icon">
+       <iconset resource="icons.qrc">
+        <normaloff>:/icons/resize.svg</normaloff>:/icons/resize.svg</iconset>
+      </property>
+     </row>
+     <row>
+      <property name="text">
+       <string/>
+      </property>
+      <property name="icon">
+       <iconset resource="icons.qrc">
+        <normaloff>:/icons/heatmap.svg</normaloff>:/icons/heatmap.svg</iconset>
+      </property>
+     </row>
+     <column>
+      <property name="text">
+       <string>Help icon and a description of how to use each tool</string>
+      </property>
+     </column>
+     <item row="0" column="0">
+      <property name="text">
+       <string>Use to open a new file (e.g., xyz, srg, and db formats).</string>
+      </property>
+      <property name="textAlignment">
+       <set>AlignJustify|AlignVCenter</set>
+      </property>
+     </item>
+     <item row="1" column="0">
+      <property name="text">
+       <string>Append a file (e.g., XYZ and SRG formats) to an existing open file.</string>
+      </property>
+     </item>
+     <item row="2" column="0">
+      <property name="text">
+       <string>Close all opened files and clean the viewer and tables.</string>
+      </property>
+     </item>
+     <item row="3" column="0">
+      <property name="text">
+       <string>Export the opened files (e.g., XYZ and SRG formats) to a database file.</string>
+      </property>
+     </item>
+     <item row="4" column="0">
+      <property name="text">
+       <string>Use it to open this current help window.</string>
+      </property>
+     </item>
+     <item row="5" column="0">
+      <property name="text">
+       <string>Exit the current interactive 3D Model Viewer application instance.</string>
+      </property>
+     </item>
+     <item row="6" column="0">
+      <property name="text">
+       <string>Use to show the front perspective of the current viewer instance.</string>
+      </property>
+     </item>
+     <item row="7" column="0">
+      <property name="text">
+       <string>Use to show the back perspective of the current viewer instance.</string>
+      </property>
+     </item>
+     <item row="8" column="0">
+      <property name="text">
+       <string>Use to show the top perspective of the current viewer instance.</string>
+      </property>
+     </item>
+     <item row="9" column="0">
+      <property name="text">
+       <string>Use to show the bottom perspective of the current viewer instance.</string>
+      </property>
+     </item>
+     <item row="10" column="0">
+      <property name="text">
+       <string>Use to show the left perspective of the current viewer instance.</string>
+      </property>
+     </item>
+     <item row="11" column="0">
+      <property name="text">
+       <string>Use to show the right perspective of the current viewer instance.</string>
+      </property>
+     </item>
+     <item row="12" column="0">
+      <property name="text">
+       <string>Use to show the ISO perspective of the current viewer instance.</string>
+      </property>
+     </item>
+     <item row="13" column="0">
+      <property name="text">
+       <string>Use it to fit the current polylines and points extension on the viewer instance.</string>
+      </property>
+     </item>
+     <item row="14" column="0">
+      <property name="text">
+       <string>Show a heatmap of the current database polylines loaded using the rainbow color palette.</string>
+      </property>
+     </item>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources>
+  <include location="icons.qrc"/>
+ </resources>
+ <connections/>
+</ui>

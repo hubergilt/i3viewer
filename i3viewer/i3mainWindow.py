@@ -30,7 +30,7 @@ class Ui_mainWindow(object):
             mainWindow.setObjectName(u"mainWindow")
         mainWindow.resize(1002, 666)
         icon = QIcon()
-        icon.addFile(u":/icons/help.png", QSize(), QIcon.Mode.Normal, QIcon.State.Off)
+        icon.addFile(u":/icons/3dviewer.ico", QSize(), QIcon.Mode.Normal, QIcon.State.Off)
         mainWindow.setWindowIcon(icon)
         mainWindow.setIconSize(QSize(22, 22))
         self.actionOpenFile = QAction(mainWindow)

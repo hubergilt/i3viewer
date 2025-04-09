@@ -6,3 +6,4 @@ i3viewer.geany
 run*.sh
 .spyproject
 *.pyc
+*.exe

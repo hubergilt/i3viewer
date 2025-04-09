@@ -8,10 +8,14 @@ from PySide6.QtWidgets import QFileDialog, QStyledItemDelegate, QMessageBox, QTr
 from PySide6.QtGui import QStandardItem, QStandardItemModel, QIcon
 
 from i3viewer.i3mainWindow import Ui_mainWindow  # Import the generated UI class
+from i3viewer.i3help import HelpDialog
 
 class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
     def __init__(self):
         super().__init__()
+
+        self.setWindowTitle("Interactive 3D Model Viewer")
+
         # Set up the UI from the generated file
         self.setupUi(self)
 
@@ -624,7 +628,8 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             self.vtkWidget.OnHeatMap()
 
     def on_help(self):
-        print("On Help function")
+        help = HelpDialog(self)
+        help.show()
 
     def on_front(self):
         if self.vtkWidget:

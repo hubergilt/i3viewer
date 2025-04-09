@@ -14,8 +14,8 @@
    <string>Interactive 3D Model Viewer</string>
   </property>
   <property name="windowIcon">
-   <iconset>
-    <normaloff>:/icons/help.png</normaloff>:/icons/help.png</iconset>
+   <iconset resource="icons.qrc">
+    <normaloff>:/icons/3dviewer.ico</normaloff>:/icons/3dviewer.ico</iconset>
   </property>
   <property name="iconSize">
    <size>

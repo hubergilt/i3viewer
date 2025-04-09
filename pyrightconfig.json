@@ -10,6 +10,7 @@
   "exclude": [
     "./i3viewer/i3mainWindow.py",
     "./i3viewer/i3polylineDialog.py",
-    "./i3viewer/i3pointDialog.py"
+    "./i3viewer/i3pointDialog.py",
+    "./i3viewer/i3helpDialog.py"
   ]
 }
