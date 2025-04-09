@@ -178,7 +178,6 @@
    <addaction name="actionPlus"/>
    <addaction name="actionMinus"/>
    <addaction name="actionExport"/>
-   <addaction name="actionHeatMap"/>
    <addaction name="separator"/>
    <addaction name="actionHelp"/>
    <addaction name="separator"/>
@@ -202,6 +201,8 @@
    <addaction name="separator"/>
    <addaction name="actionIso"/>
    <addaction name="actionFit"/>
+   <addaction name="separator"/>
+   <addaction name="actionHeatMap"/>
   </widget>
   <action name="actionOpenFile">
    <property name="enabled">

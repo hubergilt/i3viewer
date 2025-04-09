@@ -607,56 +607,70 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             QSqlDatabase.removeDatabase(self.db_path)
 
     def on_heatmap(self):
-        pass
+        # Cannot perform heatmap operation on files only with database
+        if not self.is_db_open:
+            if hasattr(QMessageBox, "Ok"):
+                QMessageBox.information(
+                    self,
+                    "HeatMap Tool Dialog",
+                    "Cannot perform heamap on the current file, it only works on dababase",
+                    getattr(QMessageBox, "Ok")
+                )
+            return
+
+        if self.vtkWidget:
+            # Switch to the first tab of the tabWidget
+            self.tabWidget.setCurrentIndex(0)  # Index 0 corresponds to the first tab
+            self.vtkWidget.OnHeatMap()
 
     def on_help(self):
         print("On Help function")
 
     def on_front(self):
         if self.vtkWidget:
-            # Switch to the second tab of the tabWidget
-            self.tabWidget.setCurrentIndex(0)  # Index 0 corresponds to the second tab
+            # Switch to the first tab of the tabWidget
+            self.tabWidget.setCurrentIndex(0)  # Index 0 corresponds to the first tab
             self.vtkWidget.OnFrontView()
 
     def on_back(self):
         if self.vtkWidget:
-            # Switch to the second tab of the tabWidget
-            self.tabWidget.setCurrentIndex(0)  # Index 0 corresponds to the second tab
+            # Switch to the first tab of the tabWidget
+            self.tabWidget.setCurrentIndex(0)  # Index 0 corresponds to the first tab
             self.vtkWidget.OnBackView()
     def on_top(self):
         if self.vtkWidget:
-            # Switch to the second tab of the tabWidget
-            self.tabWidget.setCurrentIndex(0)  # Index 0 corresponds to the second tab
+            # Switch to the first tab of the tabWidget
+            self.tabWidget.setCurrentIndex(0)  # Index 0 corresponds to the first tab
             self.vtkWidget.OnTopView()
 
     def on_bottom(self):
         if self.vtkWidget:
-            # Switch to the second tab of the tabWidget
-            self.tabWidget.setCurrentIndex(0)  # Index 0 corresponds to the second tab
+            # Switch to the first tab of the tabWidget
+            self.tabWidget.setCurrentIndex(0)  # Index 0 corresponds to the first tab
             self.vtkWidget.OnBottomView()
 
     def on_left(self):
         if self.vtkWidget:
-            # Switch to the second tab of the tabWidget
-            self.tabWidget.setCurrentIndex(0)  # Index 0 corresponds to the second tab
+            # Switch to the first tab of the tabWidget
+            self.tabWidget.setCurrentIndex(0)  # Index 0 corresponds to the first tab
             self.vtkWidget.OnLeftView()
 
     def on_right(self):
         if self.vtkWidget:
-            # Switch to the second tab of the tabWidget
-            self.tabWidget.setCurrentIndex(0)  # Index 0 corresponds to the second tab
+            # Switch to the first tab of the tabWidget
+            self.tabWidget.setCurrentIndex(0)  # Index 0 corresponds to the first tab
             self.vtkWidget.OnRightView()
 
     def on_iso(self):
         if self.vtkWidget:
-            # Switch to the second tab of the tabWidget
-            self.tabWidget.setCurrentIndex(0)  # Index 0 corresponds to the second tab
+            # Switch to the first tab of the tabWidget
+            self.tabWidget.setCurrentIndex(0)  # Index 0 corresponds to the first tab
             self.vtkWidget.OnIsometricView()
 
     def on_fit(self):
         if self.vtkWidget:
-            # Switch to the second tab of the tabWidget
-            self.tabWidget.setCurrentIndex(0)  # Index 0 corresponds to the second tab
+            # Switch to the first tab of the tabWidget
+            self.tabWidget.setCurrentIndex(0)  # Index 0 corresponds to the first tab
             self.vtkWidget.OnFitView()
 
     def on_exit(self):

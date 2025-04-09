@@ -220,7 +220,6 @@ class Ui_mainWindow(object):
         self.mainToolBar.addAction(self.actionPlus)
         self.mainToolBar.addAction(self.actionMinus)
         self.mainToolBar.addAction(self.actionExport)
-        self.mainToolBar.addAction(self.actionHeatMap)
         self.mainToolBar.addSeparator()
         self.mainToolBar.addAction(self.actionHelp)
         self.mainToolBar.addSeparator()
@@ -233,6 +232,8 @@ class Ui_mainWindow(object):
         self.viewToolBar.addSeparator()
         self.viewToolBar.addAction(self.actionIso)
         self.viewToolBar.addAction(self.actionFit)
+        self.viewToolBar.addSeparator()
+        self.viewToolBar.addAction(self.actionHeatMap)
 
         self.retranslateUi(mainWindow)
 

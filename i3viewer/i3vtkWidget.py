@@ -20,6 +20,7 @@ class i3vtkWidget(QWidget):
         self.selected_actor = None
         self.polylineDialog = PolylineDialog(0, 0, 0, [])
         self.pointDialog = PointDialog(0, 0, 0, 0, "")
+        self.heatMapOn = True
 
         if self.Parent == None:
             self.resize(500, 500)
@@ -453,3 +454,44 @@ class i3vtkWidget(QWidget):
         self.renderer.ResetCameraClippingRange()
         self.ResetCamera()
         self.UpdateView()
+
+    def OnHeatMap(self):
+        if self.model and self.model.polylines:
+            tonelajes = [polyline[0][5] if polyline[0][5] is not None else 0 for polyline in self.model.polylines.values()]
+            min_tonelaje = min(tonelajes)
+            max_tonelaje = max(tonelajes)
+            for polyline_id, polyline in self.model.polylines.items():
+
+                tonelaje = polyline[0][5] if polyline[0][5] is not None else 0
+                actor = self.polylines_get_actor(polyline_id)
+
+                if self.heatMapOn:
+                    color = self.value_to_rainbow_color(tonelaje, min_tonelaje, max_tonelaje)
+                else:
+                    color = getattr(actor, "color")
+
+                if hasattr(actor, "GetProperty"):
+                    getattr(actor, "GetProperty")().SetColor(color)
+
+            self.heatMapOn = not self.heatMapOn
+            self.UpdateView()
+
+
+    def value_to_rainbow_color(self, value, min_val=0, max_val=100):
+        """Convert a value to a color using the VTK rainbow colormap."""
+        # Create rainbow colormap
+        lut = vtk.vtkLookupTable()
+        lut.SetHueRange(0.667, 0.0)  # Blue to red
+        lut.SetSaturationRange(1.0, 1.0)
+        lut.SetValueRange(1.0, 1.0)
+        lut.SetTableRange(min_val, max_val)
+        lut.Build()
+
+        # Get color for value
+        rgb = [0.0, 0.0, 0.0]
+        lut.GetColor(value, rgb)
+
+        # Convert to integers in range 0-255
+        rgb_int = tuple(int(255 * c) for c in rgb)
+
+        return rgb_int
