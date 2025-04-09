@@ -9,32 +9,38 @@ import sys
 class i3model:
     def __init__(self, file_path):
         self.file_path = file_path
+
         self.polylines = {}
         self.points = {}
 
+        self.polyline_id = 1
+        self.point_id = 1
+
         self.actors = []
-        #self.colors = {}
 
     def polylines_format_actors(self, fromFile=True):
         """Executes the full pipeline."""
+        polylines = None
         if fromFile:
-            self.polylines_read_file()
+            polylines = self.polylines_read_file()
         else:
-            self.polylines_read_table()
+            polylines = self.polylines_read_table()
+
+        if polylines:
+            self.polylines.update(polylines)
         return self.polylines_create_actors()
 
     def polylines_read_file(self):
         """Reads the XYZ file and stores polylines with gradient values (multiplied by 100)."""
-        self.polylines = {}
-        polyline_id = 1
-        self.polylines[polyline_id] = []
+        polylines = {}
+        polylines[self.polyline_id] = []
 
         with open(self.file_path, "r") as file:
             for line in file:
                 line = line.strip()
                 if line == "$":
-                    polyline_id += 1  # Start a new polyline
-                    self.polylines[polyline_id] = []
+                    self.polyline_id += 1  # Start a new polyline
+                    polylines[self.polyline_id] = []
                 else:
                     parts = line.split()
                     if len(parts) == 3:
@@ -43,19 +49,20 @@ class i3model:
                         )  # Round to 3 decimals
 
                         # Compute gradient
-                        if not self.polylines[polyline_id]:  # First point in polyline
+                        if not polylines[self.polyline_id]:  # First point in polyline
                             gradient = 0.0
                         else:
-                            prev_x, prev_y, prev_z, _ = self.polylines[polyline_id][-1]
+                            prev_x, prev_y, prev_z, _ = polylines[self.polyline_id][-1]
                             delta_z = z - prev_z
                             distance = math.sqrt((x - prev_x) ** 2 + (y - prev_y) ** 2)
                             gradient = (delta_z / distance) * 100 if distance != 0 else 0.0  # Multiply by 100
 
                         # Append the point with gradient
-                        self.polylines[polyline_id].append((x, y, z, round(gradient, 3)))  # Round gradient to 3 decimals
+                        polylines[self.polyline_id].append((x, y, z, round(gradient, 3)))  # Round gradient to 3 decimals
 
         # Remove empty polylines
-        self.polylines = {k: v for k, v in self.polylines.items() if v}
+        polylines = {k: v for k, v in polylines.items() if v}
+        return polylines
 
     def polylines_read_table(self):
         """Fetch polylines grouped by polyline_id from the SQLite database."""
@@ -80,16 +87,16 @@ class i3model:
 
         conn.close()
 
-        self.polylines = {}
+        polylines = {}
         for polyline_id, x, y, z, g, *rest in data:
-            if polyline_id not in self.polylines:
-                self.polylines[polyline_id] = []
-            self.polylines[polyline_id].append((x, y, z, g, *rest))
+            if polyline_id not in polylines:
+                polylines[polyline_id] = []
+            polylines[polyline_id].append((x, y, z, g, *rest))
+        return polylines
 
     def polylines_create_actors(self):
         """Creates separate VTK actors for each polyline in self.polylines."""
         self.actors = []
-        #self.colors = {}
 
         for polyline_id, vertices in self.polylines.items():
             actor = self.polylines_create_actor(polyline_id, vertices)
@@ -110,7 +117,6 @@ class i3model:
 
         # Generate and store a random color for this polyline
         color = [random.randint(0, 255) / 255.0 for _ in range(3)]
-        #self.colors[polyline_id] = color
 
         # Insert points and define polyline connectivity
         for i, (x, y, z, *_) in enumerate(vertices):
@@ -139,13 +145,6 @@ class i3model:
         setattr(actor, "polyline_id", polyline_id)
         setattr(actor, "color", color)
         return actor
-
-    def polylines_get_actor(self, polyline_id):
-        """Returns the VTK actor associated with the given polyline_id, or None if not found."""
-        for actor in self.actors:
-            if hasattr(actor, "polyline_id") and actor.polyline_id == polyline_id:
-                return actor
-        return None
 
     def polylines_save_database(self, db_path):
         """Saves the polylines data into the SQLite database."""
@@ -192,22 +191,22 @@ class i3model:
 
     def points_format_actors(self, fromFile=True):
         """Executes the full pipeline."""
+        points = None
         if fromFile:
-            self.points_read_file()
+            points = self.points_read_file()
         else:
-            self.points_read_table()
+            points = self.points_read_table()
+
+        if points:
+            self.points.update(points)
+
         return self.points_create_actors()
 
-    def points_get_actor(self, point_id):
-        """Returns the VTK actor associated with the given point_id, or None if not found."""
-        for actor in self.actors:
-            if hasattr(actor, "point_id") and actor.point_id == point_id:
-                return actor
-        return None
-
     def points_read_file(self):
-        self.points = {}
-        point_id = 1
+        """Reads the SRG file and store points"""
+
+        points = {}
+        points[self.point_id] = []
 
         with open(self.file_path, 'r', newline='', encoding='utf-8') as file:
             reader = csv.reader(file)
@@ -222,10 +221,11 @@ class i3model:
                     z = float(row[2])
                     name = row[5]
 
-                    self.points[point_id] = [(x, y, z, name)]
-                    point_id += 1
+                    points[self.point_id] = [(x, y, z, name)]
+                    self.point_id += 1
                 except ValueError:
                     continue  # Skip lines with conversion errors
+        return points
 
     def points_read_table(self):
         conn = sqlite3.connect(self.file_path)
@@ -242,10 +242,13 @@ class i3model:
         data = cursor.fetchall()
         conn.close()
 
+        points = {}
         for point_id, x, y, z, name in data:
-            if point_id not in self.points:
-                self.points[point_id] = []
-            self.points[point_id].append((x, y, z, name))
+            if point_id not in points:
+                points[point_id] = []
+            points[point_id].append((x, y, z, name))
+
+        return points
 
 
     def points_create_actors(self):

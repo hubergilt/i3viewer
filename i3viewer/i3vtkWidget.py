@@ -31,28 +31,31 @@ class i3vtkWidget(QWidget):
 
     def import_file(self, file_path, fromFile=True, isPolylines=True, newFile=True):
 
-        actors = []
-        if newFile:
-            self.RemoveAll()
-            self.actors = []
-
         if self.model is None:
             self.model = i3model(file_path)
         else:
             self.model.file_path = file_path
+
+        actors = []
+        if newFile:
+            self.RemoveAll()
+            self.actors = []
+            self.model.polyline_id = 1
+            self.model.point_id = 1
 
         if fromFile:
             if isPolylines:
                 actors = self.model.polylines_format_actors(fromFile)
             else:
                 actors = self.model.points_format_actors(fromFile)
+            self.actors.extend(actors)
         else:
             if self.model.hasPointsTable(file_path):
                 actors = self.model.points_format_actors(fromFile)
+                self.actors.extend(actors)
             if self.model.hasPolylinesTable(file_path):
                 actors = self.model.polylines_format_actors(fromFile)
-
-        self.actors.extend(actors)
+                self.actors.extend(actors)
 
         if self.actors:
             for actor in self.actors:
@@ -60,11 +63,30 @@ class i3vtkWidget(QWidget):
 
         self.UpdateView()
 
+    def polylines_get_actor(self, polyline_id):
+        """Returns the VTK actor associated with the given polyline_id, or None if not found."""
+        for actor in self.actors:
+            if hasattr(actor, "polyline_id") and actor.polyline_id == polyline_id:
+                return actor
+        return None
+
+    def points_get_actor(self, point_id):
+        """Returns the VTK actor associated with the given point_id, or None if not found."""
+        for actor in self.actors:
+            if hasattr(actor, "point_id") and actor.point_id == point_id:
+                return actor
+        return None
+
     def RemoveAll(self):
         if self.actors:
             for actor in self.actors:
                 self.RemoveActor(actor)
+            self.actors = []
         self.UpdateView()
+        if self.model:
+            self.model.polylines = {}
+            self.model.points = {}
+
 
     def calculate_polyline_length(self, polyline):
         """Calculates the total length of a polyline."""

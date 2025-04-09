@@ -112,11 +112,21 @@
       </widget>
       <widget class="QWidget" name="tab_2">
        <attribute name="title">
-        <string>Table</string>
+        <string>Polylines</string>
        </attribute>
        <layout class="QHBoxLayout" name="horizontalLayout_5">
         <item>
-         <widget class="QTableView" name="tableView"/>
+         <widget class="QTableView" name="tableViewPolylines"/>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="tab_3">
+       <attribute name="title">
+        <string>Points</string>
+       </attribute>
+       <layout class="QHBoxLayout" name="horizontalLayout_6">
+        <item>
+         <widget class="QTableView" name="tableViewPoints"/>
         </item>
        </layout>
       </widget>
@@ -168,6 +178,7 @@
    <addaction name="actionPlus"/>
    <addaction name="actionMinus"/>
    <addaction name="actionExport"/>
+   <addaction name="actionHeatMap"/>
    <addaction name="separator"/>
    <addaction name="actionHelp"/>
    <addaction name="separator"/>
@@ -349,6 +360,18 @@
    </property>
    <property name="toolTip">
     <string>Close all</string>
+   </property>
+  </action>
+  <action name="actionHeatMap">
+   <property name="icon">
+    <iconset resource="icons.qrc">
+     <normaloff>:/icons/heatmap.svg</normaloff>:/icons/heatmap.svg</iconset>
+   </property>
+   <property name="text">
+    <string>HeatMap</string>
+   </property>
+   <property name="toolTip">
+    <string>HeadMap</string>
    </property>
   </action>
  </widget>
