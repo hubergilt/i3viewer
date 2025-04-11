@@ -64,6 +64,11 @@ class i3vtkWidget(QWidget):
 
         self.UpdateView()
 
+
+    def polylines_update_data(self):
+        if self.model:
+            self.model.polylines_reread_table()
+
     def polylines_get_actor(self, polyline_id):
         """Returns the VTK actor associated with the given polyline_id, or None if not found."""
         for actor in self.actors:
@@ -87,7 +92,6 @@ class i3vtkWidget(QWidget):
         if self.model:
             self.model.polylines = {}
             self.model.points = {}
-
 
     def calculate_polyline_length(self, polyline):
         """Calculates the total length of a polyline."""

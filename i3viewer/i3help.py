@@ -1,6 +1,4 @@
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (QApplication, QDialog, QHeaderView,
-                               QTableWidget, QTableWidgetItem)
+from PySide6.QtWidgets import QDialog, QTableWidget
 
 from i3viewer.i3helpDialog import \
     Ui_Dialog  # Import the generated UI class for points

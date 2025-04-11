@@ -30,6 +30,11 @@ class i3model:
             self.polylines.update(polylines)
         return self.polylines_create_actors()
 
+    def polylines_reread_table(self):
+        polylines = self.polylines_read_table()
+        if polylines:
+            self.polylines.update(polylines)
+
     def polylines_read_file(self):
         """Reads the XYZ file and stores polylines with gradient values (multiplied by 100)."""
         polylines = {}

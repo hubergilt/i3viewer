@@ -46,6 +46,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             self.treeView.setContextMenuPolicy(getattr(Qt, "CustomContextMenu"))
 
         self.treeView.customContextMenuRequested.connect(self.on_context_menu)
+        self.tabWidget.currentChanged.connect(self.on_tab_changed)
 
     def connect_actions(self):
         """Connect UI actions to their respective functions."""
@@ -284,6 +285,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         self.treeView.setModel(self.tree_model)
         self.polyline_idx = 1
         self.point_idx = 1
+        self.tableview_release()
 
     def on_export(self):
         """Handle the 'Save' action."""
@@ -894,6 +896,10 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             if hasattr(QItemSelectionModel, "ClearAndSelect") and hasattr(QItemSelectionModel, "Rows"):
                 selection_model.select(index, getattr(QItemSelectionModel, "ClearAndSelect") | getattr(QItemSelectionModel, "Rows"))
 
+    def on_tab_changed(self, index):
+        """Handle tab change events."""
+        if index == 0 and self.vtkWidget:  # First tab (VTK widget)
+            self.vtkWidget.polylines_update_data()
 
 def main():
     app = QtWidgets.QApplication(sys.argv)
