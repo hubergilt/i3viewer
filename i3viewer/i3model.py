@@ -6,6 +6,8 @@ import math
 import csv
 import sys
 
+from i3viewer.i3enums import FileType
+
 class i3model:
     def __init__(self, file_path):
         self.file_path = file_path
@@ -18,13 +20,13 @@ class i3model:
 
         self.actors = []
 
-    def polylines_format_actors(self, fromFile=True):
+    def polylines_format_actors(self, fileType):
         """Executes the full pipeline."""
         polylines = None
-        if fromFile:
-            polylines = self.polylines_read_file()
-        else:
+        if fileType == FileType.DB:
             polylines = self.polylines_read_table()
+        else:
+            polylines = self.polylines_read_file()
 
         if polylines:
             self.polylines.update(polylines)
@@ -36,7 +38,7 @@ class i3model:
             self.polylines.update(polylines)
 
     def polylines_read_file(self):
-        """Reads the XYZ file and stores polylines with gradient values (multiplied by 100)."""
+        """reads the xyz file and stores polylines with gradient values (multiplied by 100)."""
         polylines = {}
         polylines[self.polyline_id] = []
 
@@ -44,28 +46,63 @@ class i3model:
             for line in file:
                 line = line.strip()
                 if line == "$":
-                    self.polyline_id += 1  # Start a new polyline
+                    self.polyline_id += 1  # start a new polyline
                     polylines[self.polyline_id] = []
                 else:
                     parts = line.split()
                     if len(parts) == 3:
                         x, y, z = map(
                             lambda v: round(float(v), 3), parts
-                        )  # Round to 3 decimals
+                        )  # round to 3 decimals
 
-                        # Compute gradient
-                        if not polylines[self.polyline_id]:  # First point in polyline
+                        # compute gradient
+                        if not polylines[self.polyline_id]:  # first point in polyline
                             gradient = 0.0
                         else:
                             prev_x, prev_y, prev_z, _ = polylines[self.polyline_id][-1]
                             delta_z = z - prev_z
                             distance = math.sqrt((x - prev_x) ** 2 + (y - prev_y) ** 2)
-                            gradient = (delta_z / distance) * 100 if distance != 0 else 0.0  # Multiply by 100
+                            gradient = (delta_z / distance) * 100 if distance != 0 else 0.0  # multiply by 100
 
-                        # Append the point with gradient
-                        polylines[self.polyline_id].append((x, y, z, round(gradient, 3)))  # Round gradient to 3 decimals
+                        # append the point with gradient
+                        polylines[self.polyline_id].append((x, y, z, round(gradient, 3)))  # round gradient to 3 decimals
 
-        # Remove empty polylines
+        # remove empty polylines
+        polylines = {k: v for k, v in polylines.items() if v}
+        return polylines
+
+    def polylines_read_csv_file(self):
+        """reads the csv file and stores polylines with gradient values (multiplied by 100)."""
+        polylines = {}
+        polylines[self.polyline_id] = []
+
+        with open(self.file_path, "r") as file:
+            for line in file:
+                line = line.strip()
+                if line == "$":
+                    self.polyline_id += 1  # start a new polyline
+                    polylines[self.polyline_id] = []
+                else:
+                    parts = line.split(",")
+                    if len(parts) == 4:
+                        name, *xyz = parts
+                        x, y, z = map(
+                            lambda v: round(float(v), 3), *xyz
+                        )  # round to 3 decimals
+
+                        # compute gradient
+                        if not polylines[self.polyline_id]:  # first point in polyline
+                            gradient = 0.0
+                        else:
+                            prev_x, prev_y, prev_z, _ = polylines[self.polyline_id][-1]
+                            delta_z = z - prev_z
+                            distance = math.sqrt((x - prev_x) ** 2 + (y - prev_y) ** 2)
+                            gradient = (delta_z / distance) * 100 if distance != 0 else 0.0  # multiply by 100
+
+                        # append the point with gradient
+                        polylines[self.polyline_id].append((x, y, z, round(gradient, 3), name))  # round gradient to 3 decimals
+
+        # remove empty polylines
         polylines = {k: v for k, v in polylines.items() if v}
         return polylines
 
@@ -194,13 +231,13 @@ class i3model:
         conn.commit()
         conn.close()
 
-    def points_format_actors(self, fromFile=True):
+    def points_format_actors(self, fileType):
         """Executes the full pipeline."""
         points = None
-        if fromFile:
-            points = self.points_read_file()
-        else:
+        if fileType == FileType.DB:
             points = self.points_read_table()
+        else:
+            points = self.points_read_file()
 
         if points:
             self.points.update(points)

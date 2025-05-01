@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">
+  <!-- Background -->
+  <rect width="100" height="100" fill="#CA9EE6"/> <!-- Light gray background -->
+  
+  <!-- Letter C -->
+  <text x="15" y="50" font-family="Arial, sans-serif" font-size="50" font-weight="bold" fill="white">C</text> <!-- Dark gray text -->
+  
+  <!-- Letter S -->
+  <text x="35" y="90" font-family="Arial, sans-serif" font-size="50" font-weight="bold" fill="white">S</text> <!-- Dark gray text -->
+  
+  <!-- Letter V -->
+  <text x="55" y="50" font-family="Arial, sans-serif" font-size="50" font-weight="bold" fill="white">V</text> <!-- Dark gray text -->
+</svg>

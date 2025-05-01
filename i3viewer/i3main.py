@@ -9,6 +9,8 @@ from PySide6.QtGui import QStandardItem, QStandardItemModel, QIcon
 
 from i3viewer.i3mainWindow import Ui_mainWindow  # Import the generated UI class
 from i3viewer.i3help import HelpDialog
+from i3viewer.i3heatmap import HeatMapDialog
+from i3viewer.i3enums import FileType
 
 class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
     def __init__(self):
@@ -27,9 +29,10 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
 
         self.model = None
         self.file_path = None
-        self.db_file = None
-        self.db_path = None
         self.base_name = None
+
+        self.fileType = None
+
         self.db = None
         self.polyline_item = None
         self.tree_model = None
@@ -39,6 +42,10 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         self.point_idx = 1
         self.header_label = ""
         self.is_db_open = False
+        self.labelPeriod.setText(f"period:00")
+        self.actionBackward.setDisabled(True)
+        self.labelPeriod.setDisabled(True)
+        self.actionForward.setDisabled(True)
 
         self.setup_context_menu()
 
@@ -52,7 +59,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         """Connect UI actions to their respective functions."""
         self.actionOpenFile.triggered.connect(self.on_open_file)
         self.actionPlus.triggered.connect(self.on_append_file)
-        self.actionMinus.triggered.connect(self.on_clear)
+        self.actionMinus.triggered.connect(self.on_clear_workspace)
         self.actionExport.triggered.connect(self.on_export)
         self.actionHeatMap.triggered.connect(self.on_heatmap)
         self.actionHelp.triggered.connect(self.on_help)
@@ -67,7 +74,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         self.actionFit.triggered.connect(self.on_fit)
 
     def on_open_file(self):
-        """Handle the 'Open File' action for .xyz files."""
+        """Handle the 'Open File' action for open *.xyz, *.srg, *.db files"""
         # Open a file dialog to select an .xyz file
         file_dialog = QtWidgets.QFileDialog(self)
         if hasattr(QtWidgets.QFileDialog, "Accept"):
@@ -91,105 +98,104 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             if selected_files:
                 self.file_path = selected_files[0]
                 self.base_name, _ = os.path.splitext(self.file_path)
-                self.on_clear()
+
+                self.fileType = FileType.get_fileType(self.file_path)
+
+                self.on_clear_workspace()
                 if self.vtkWidget:
                     self.vtkWidget.hide_dialog()
 
-                # Switch to the second tab of the tabWidget
-                self.tabWidget.setCurrentIndex(0)  # Index 0 corresponds to the second tab
+                # Switch to the first tab of the tabWidget
+                self.tabWidget.setCurrentIndex(0)  # Index 0 corresponds to the first tab
 
-                if self.file_path.endswith(".xyz"):
+                if self.fileType == FileType.XYZ:
                     self.open_xyz_file(openNew=True)
-                elif self.file_path.endswith(".srg"):
+                elif self.fileType == FileType.SRG:
                     self.open_srg_file(openNew=True)
-                elif self.file_path.endswith(".db"):
+                elif self.fileType == FileType.DB:
                     self.open_db_file()
+                elif self.fileType == FileType.CSV:
+                    self.open_csv_file(openNew=True)
                 else:
                     QMessageBox.warning(
                         self, "Invalid File", "Please select a valid file."
                     )
 
-
-
     def open_xyz_file(self, openNew=True):
-
-        if self.file_path is None or self.base_name is None:
+        """ open  xyz file for polylines data"""
+        if self.file_path is None:
             return
 
-        self.db_path = self.base_name + ".db"
+        #self.db_path = self.base_name + ".db"
 
-        self.vtkWidget.import_file(self.file_path, fromFile=True, isPolylines=True, newFile=openNew)
+        self.vtkWidget.import_file(self.file_path, FileType.XYZ, newFile=openNew)
 
-        self.is_db_open = False
+        #self.is_db_open = False
 
-        self.treeview_setup(openNew)
+        self.treeview_setup()
+        self.tableview_release()
 
         self.statusbar.showMessage(
             f"Imported data from the file {self.file_path}."
         )
-        self.tableview_release()
+
 
     def open_srg_file(self, openNew=True):
+        """ open  srg file for points data"""
+        if self.file_path is None:
+            return
+
+        #base_name, _ = os.path.splitext(self.file_path)
+        #self.db_path = base_name + ".db"
+
+        self.vtkWidget.import_file(self.file_path, FileType.SRG, newFile=openNew)
+
+        #self.is_db_open = False
+
+        self.treeview_setup()
+        self.tableview_release()
+
+        self.statusbar.showMessage(
+            f"Imported data from the file {self.file_path}."
+        )
+
+    def open_db_file(self):
+        """ open db file for polylines and points data"""
+        #self.db_path = self.file_path
+        if self.file_path is None:
+            return
+
+        self.vtkWidget.import_file(self.file_path, FileType.DB, newFile=True)
+
+        #self.is_db_open = True
+
+        self.treeview_setup()
+        self.tableview_release()
+        self.tableview_setup()
+
+        self.statusbar.showMessage(
+            f"Imported data from the file {self.file_path}."
+        )
+
+    def open_csv_file(self, openNew=True):
 
         if self.file_path is None:
             return
 
-        base_name, _ = os.path.splitext(self.file_path)
-        self.db_path = base_name + ".db"
+        #self.db_path = self.base_name + ".db"
 
-        self.vtkWidget.import_file(self.file_path, fromFile=True, isPolylines=False, newFile=openNew)
+        self.vtkWidget.import_file(self.file_path, FileType.CSV, newFile=openNew)
 
         self.is_db_open = False
 
-        self.treeview_setup(openNew)
+        self.treeview_setup()
 
         self.statusbar.showMessage(
             f"Imported data from the file {self.file_path}."
         )
         self.tableview_release()
 
-    def open_db_file(self):
-        self.db_path = self.file_path
-
-        self.vtkWidget.import_file(self.db_path, fromFile=False, isPolylines=False, newFile=True)
-
-        self.is_db_open = True
-
-        self.treeview_setup(openNew=True)
-
-        self.statusbar.showMessage(
-            f"Imported data from the file {self.db_path}."
-        )
-        self.tableview_release()
-
-        if self.vtkWidget.model:
-            if self.vtkWidget.model.hasPointsTable(self.db_path):
-                self.tableview_setup_points()
-            if self.vtkWidget.model.hasPolylinesTable(self.db_path):
-                self.tableview_setup_polylines()
-
-    def is_db_file(self):
-        if self.file_path:
-            if self.file_path.endswith(".db"):
-                return True
-            else:
-                return False
-
-    def is_xyz_file(self):
-        if self.file_path:
-            if self.file_path.endswith(".xyz"):
-                return True
-            else:
-                return False
-
-    def is_srg_file(self):
-        if self.file_path:
-            if self.file_path.endswith(".srg"):
-                return True
-            else:
-                return False
-
-    def treeview_setup(self, openNew):
+    def treeview_setup(self):
 
         if self.file_path is None:
             return
@@ -201,7 +207,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
 
             root_item = QStandardItem(f"{self.file_path}")
 
-            if openNew:
+            if self.header_label == "":
                 self.header_label = self.file_path
             else:
                 self.header_label += f"\n{self.file_path}"
@@ -209,16 +215,16 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             polyline_count = len(model.polylines)
             point_count = len(model.points)
 
-            if self.is_db_file():
+            if self.fileType == FileType.DB:
                 root_item.setIcon(QIcon(u":/icons/db.svg"))  # Set icon for the root node
                 self.treeview_populate_polylines(model, root_item)
                 self.treeview_populate_points(model, root_item)
                 self.header_label += f" ({polyline_count}L y {point_count}P)"
-            elif self.is_xyz_file():
+            elif self.fileType == FileType.XYZ:
                 root_item.setIcon(QIcon(u":/icons/xyz.svg"))  # Set icon for the root node
                 self.treeview_populate_polylines(model, root_item)
                 self.header_label += f" ({polyline_count}L)"
-            elif self.is_srg_file():
+            elif self.fileType == FileType.SRG:
                 root_item.setIcon(QIcon(u":/icons/srg.svg"))  # Set icon for the root node
                 self.treeview_populate_points(model, root_item)
                 self.header_label += f" ({point_count}P)"
@@ -278,7 +284,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
                 point_root.appendRow(point_item)
             root_item.appendRow(point_root)
 
-    def on_clear(self):
+    def on_clear_workspace(self):
         if self.vtkWidget:
             self.vtkWidget.RemoveAll()
         self.tree_model = QStandardItemModel()
@@ -286,12 +292,14 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         self.polyline_idx = 1
         self.point_idx = 1
         self.tableview_release()
+        self.header_label = ""
 
     def on_export(self):
-        """Handle the 'Save' action."""
-
-        if self.db_path is None:
+        """Handle the 'Export to database' action."""
+        if self.file_path is None:
             return
+
+        self.configure_db_path(self.file_path)
 
         model = self.vtkWidget.model
         if not model:
@@ -303,13 +311,13 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             return
 
         if (not model.polylines) ^ (not model.points):
-            if os.path.exists(self.db_path):
+            if os.path.exists(self.file_path):
                 if hasattr(QMessageBox, "Yes") or hasattr(QMessageBox, "No"):
                     reply = QMessageBox.question(
                         self,
                         'Message',
 
-                        f"The Database File Already Exists:\n{self.db_path}\nDo you want to create an empty database\noverwriting the existing file?",
+                        f"The Database File Already Exists:\n{self.file_path}\nDo you want to create an empty database\noverwriting the existing file?",
                         getattr(QMessageBox, "Yes") | getattr(QMessageBox, "No"),
                         getattr(QMessageBox, "No")  # Default is No
                     )
@@ -323,16 +331,23 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             if file_dialog.exec():
                 selected_files = file_dialog.selectedFiles()
                 if selected_files:
-                    self.db_path = selected_files[0]
+                    self.file_path = selected_files[0]
             else:
                 return
         elif not model.polylines and not model.points:
             return
         else:
             return
+        self.save_database(model)
 
+    def configure_db_path(self, file):
+        if file:
+            base_name, _ = os.path.splitext(file)
+            self.file_path = base_name + ".db"
+
+    def save_database(self, model):
         if model.polylines:
-            model.polylines_save_database(self.db_path)
+            model.polylines_save_database(self.file_path)
             # Switch to the second tab of the tabWidget
             self.tabWidget.setCurrentIndex(1)  # Index 1 corresponds to the second tab
             self.tableview_setup_polylines()
@@ -345,7 +360,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
                     getattr(QMessageBox, "Ok")
                 )
         if model.points:
-            model.points_save_database(self.db_path)
+            model.points_save_database(self.file_path)
             # Switch to the second tab of the tabWidget
             self.tabWidget.setCurrentIndex(2)  # Index 2 corresponds to the third tab
             self.tableview_setup_points()
@@ -396,16 +411,20 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
                 self.file_path = selected_files[0]
                 self.base_name, _ = os.path.splitext(self.file_path)
 
+                self.fileType = FileType.get_fileType(self.file_path)
+
                 #if self.vtkWidget:
                 #    self.vtkWidget.hide_dialog()
 
-                # Switch to the second tab of the tabWidget
-                self.tabWidget.setCurrentIndex(0)  # Index 0 corresponds to the second tab
+                # Switch to the first tab of the tabWidget
+                self.tabWidget.setCurrentIndex(0)  # Index 0 corresponds to the first tab
 
-                if self.file_path.endswith(".xyz"):
+                if self.fileType == FileType.XYZ:
                     self.open_xyz_file(openNew=False)
-                elif self.file_path.endswith(".srg"):
+                elif self.fileType == FileType.SRG:
                     self.open_srg_file(openNew=False)
+                elif self.fileType == FileType.CSV:
+                    self.open_csv_file(openNew=False)
                 else:
                     QMessageBox.warning(
                         self, "Invalid File", "Please select a valid file."
@@ -417,7 +436,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             self.db = QSqlDatabase.addDatabase("QSQLITE")
 
         # Validate database path
-        if not self.db_path:
+        if not self.file_path:
             QMessageBox.warning(
                 self,
                 "Invalid File",
@@ -426,7 +445,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             return -1
 
         # Set database name and open the connection
-        self.db.setDatabaseName(self.db_path)
+        self.db.setDatabaseName(self.file_path)
         if not self.db.open():
             QMessageBox.warning(
                 self,
@@ -506,8 +525,17 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         # Update status bar with row count
         total_rows = self.tableModelPolylines.rowCount()
         self.statusbar.showMessage(
-            f"Total rows: {total_rows} saved in the database {self.db_path}."
+            f"Total rows: {total_rows} saved in the database {self.file_path}."
         )
+
+
+    def tableview_setup(self):
+        if self.vtkWidget.model is None:
+            return
+        if self.vtkWidget.model.hasPointsTable(self.file_path):
+            self.tableview_setup_points()
+        if self.vtkWidget.model.hasPolylinesTable(self.file_path):
+            self.tableview_setup_polylines()
 
 
     def tableview_setup_points(self):
@@ -515,11 +543,11 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         if self.db is None:
             self.db = QSqlDatabase.addDatabase("QSQLITE")
 
-        if not self.db_path:
+        if not self.file_path:
             QMessageBox.warning(self, "Invalid File", "Error: Database path is not set.")
             return -1
 
-        self.db.setDatabaseName(self.db_path)
+        self.db.setDatabaseName(self.file_path)
         if not self.db.open():
             QMessageBox.warning(self, "Invalid File", "Error: Unable to open database.")
             print("Error: Unable to open database")
@@ -577,7 +605,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
 
         self.tableViewPoints.resizeColumnsToContents()
         total_rows = self.tableModelPoints.rowCount()
-        self.statusbar.showMessage(f"Total rows: {total_rows} saved in the database {self.db_path}.")
+        self.statusbar.showMessage(f"Total rows: {total_rows} saved in the database {self.file_path}.")
 
 
     def tableModelPolylines_fetch_all_rows(self):
@@ -608,9 +636,10 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             self.tableModelPoints = None
             #if model:
             #    model.points = {}
-        if self.db and self.db.isOpen() and self.db_path:
+        if self.db and self.db.isOpen() and self.file_path:
             self.db.close()
-            QSqlDatabase.removeDatabase(self.db_path)
+            QSqlDatabase.removeDatabase(self.file_path)
+            self.is_db_open = False
 
     def on_heatmap(self):
         # Cannot perform heatmap operation on files only with database
@@ -628,6 +657,8 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             # Switch to the first tab of the tabWidget
             self.tabWidget.setCurrentIndex(0)  # Index 0 corresponds to the first tab
             self.vtkWidget.OnHeatMap()
+            dialog = HeatMapDialog()
+            dialog.exec()
 
     def on_help(self):
         help = HelpDialog(self)
@@ -898,7 +929,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
 
     def on_tab_changed(self, index):
         """Handle tab change events."""
-        if index == 0 and self.vtkWidget:  # First tab (VTK widget)
+        if index == 0 and self.vtkWidget and self.is_db_open:  # First tab (VTK widget)
             self.vtkWidget.polylines_update_data()
 
 def main():

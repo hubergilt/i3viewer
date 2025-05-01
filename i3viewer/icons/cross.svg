@@ -1,0 +1,24 @@
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- Red circle background -->
+  <path d="M100,25 
+           a75,75 0 1,0 0,150 
+           a75,75 0 1,0 0,-150 z" 
+        fill="#E53935" stroke="#C62828" stroke-width="3"/>
+  
+  <!-- White X mark -->
+  <path d="M60,60 
+           L140,140" 
+        stroke="white" 
+        stroke-width="16" 
+        fill="none" 
+        stroke-linecap="round" 
+        stroke-linejoin="round"/>
+        
+  <path d="M140,60 
+           L60,140" 
+        stroke="white" 
+        stroke-width="16" 
+        fill="none" 
+        stroke-linecap="round" 
+        stroke-linejoin="round"/>
+</svg>

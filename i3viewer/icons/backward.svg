@@ -1,0 +1,17 @@
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- Circular background -->
+  <path d="M100,25 
+           a75,75 0 1,0 0,150 
+           a75,75 0 1,0 0,-150 z" 
+        fill="#55ACEE" stroke="#000000" stroke-width="3"/>
+  
+  <!-- Left-pointing arrow -->
+  <path d="M125,60 
+           L75,100 
+           L125,140" 
+        stroke="#000000" 
+        stroke-width="20" 
+        fill="none" 
+        stroke-linecap="round" 
+        stroke-linejoin="round"/>
+</svg>

@@ -6,6 +6,7 @@ from vtk import vtkActor
 from i3viewer.i3model import i3model
 from i3viewer.i3point import NonModalDialog as PointDialog
 from i3viewer.i3polyline import NonModalDialog as PolylineDialog
+from i3viewer.i3enums import FileType
 
 
 class i3vtkWidget(QWidget):
@@ -30,7 +31,7 @@ class i3vtkWidget(QWidget):
         self.ShowEdges = False
         self.SetupWnd()
 
-    def import_file(self, file_path, fromFile=True, isPolylines=True, newFile=True):
+    def import_file(self, file_path, fileType, newFile=True):
 
         if self.model is None:
             self.model = i3model(file_path)
@@ -44,19 +45,19 @@ class i3vtkWidget(QWidget):
             self.model.polyline_id = 1
             self.model.point_id = 1
 
-        if fromFile:
-            if isPolylines:
-                actors = self.model.polylines_format_actors(fromFile)
-            else:
-                actors = self.model.points_format_actors(fromFile)
-            self.actors.extend(actors)
-        else:
+        if fileType == FileType.DB:
             if self.model.hasPointsTable(file_path):
-                actors = self.model.points_format_actors(fromFile)
+                actors = self.model.points_format_actors(fileType)
                 self.actors.extend(actors)
             if self.model.hasPolylinesTable(file_path):
-                actors = self.model.polylines_format_actors(fromFile)
+                actors = self.model.polylines_format_actors(fileType)
                 self.actors.extend(actors)
+        elif fileType == FileType.XYZ or fileType == FileType.CSV:
+            actors = self.model.polylines_format_actors(fileType)
+            self.actors.extend(actors)
+        elif fileType == FileType.SRG:
+            actors = self.model.points_format_actors(fileType)
+            self.actors.extend(actors)
 
         if self.actors:
             for actor in self.actors:
