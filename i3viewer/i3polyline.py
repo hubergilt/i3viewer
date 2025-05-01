@@ -76,20 +76,20 @@ class NonModalDialog(QDialog, Ui_Dialog):
                 "Latitude",
                 "Altitude",
                 "Gradient",
+                "Route",
+                "Tonne",
                 "velocidad máxima",
-                "tonelaje de material por carretera",
                 "resistencia a la rodadura",
                 "límite máximo de velocidad",
                 "velocidad de frenado",
                 "rimpull",
                 "retardo",
                 "consumo de combustible",
-                "nombre de la ruta",
             ]
         )
 
         # Populate the Id, Longitude, Latitude, Altitude, and Gradient column
-        for row, (x, y, z, g, *rest) in enumerate(points):
+        for row, (x, y, z, g, r, *rest) in enumerate(points):
 
             if hasattr(Qt, "AlignRight") and hasattr(Qt, "AlignVCenter"):
                 # Create QTableWidgetItem for each cell and set text alignment to right
@@ -128,8 +128,15 @@ class NonModalDialog(QDialog, Ui_Dialog):
                 )
                 self.tableWidget.setItem(row, 4, gra_item)
 
-                if rest and len(rest) == 9:
-                    for index, val in enumerate(rest[:8]):
+                # Nombre de ruta
+                ruta_item = QTableWidgetItem(f"{r}")
+                ruta_item.setTextAlignment(
+                    getattr(Qt, "AlignRight") | getattr(Qt, "AlignVCenter")
+                )
+                self.tableWidget.setItem(row, 5, ruta_item)
+
+                if rest and len(rest) == 8:
+                    for index, val in enumerate(rest[:7]):
                         val_item = QTableWidgetItem(
                             f"{val:.3f}" if val is not None else ""
                         )
@@ -137,14 +144,7 @@ class NonModalDialog(QDialog, Ui_Dialog):
                             getattr(Qt, "AlignRight") | getattr(
                                 Qt, "AlignVCenter")
                         )
-                        self.tableWidget.setItem(row, 5 + index, val_item)
-
-                    ruta = rest[8]
-                    ruta_item = QTableWidgetItem(ruta)  # nombre de ruta (text)
-                    ruta_item.setTextAlignment(
-                        getattr(Qt, "AlignRight") | getattr(Qt, "AlignVCenter")
-                    )
-                    self.tableWidget.setItem(row, 13, ruta_item)
+                        self.tableWidget.setItem(row, 6 + index, val_item)
 
         # Adjust column widths to fit content
         self.tableWidget.resizeColumnsToContents()

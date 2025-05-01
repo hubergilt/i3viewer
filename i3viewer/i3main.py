@@ -41,7 +41,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         self.polyline_idx = 1
         self.point_idx = 1
         self.header_label = ""
-        self.is_db_open = False
+        #self.is_db_open = False
         self.labelPeriod.setText(f"period:00")
         self.actionBackward.setDisabled(True)
         self.labelPeriod.setDisabled(True)
@@ -88,7 +88,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             home_dir = os.path.expanduser("~")
             file_dialog.setDirectory(home_dir)
 
-        file_dialog.setNameFilter("XYZ Files (*.xyz);;SRG Files (*.srg);;SQLite Files (*.db)")
+        file_dialog.setNameFilter("XYZ Files for Polylines (*.xyz);;CSV Files for Polylines (*.csv);;SRG Files for Points (*.srg);;SQLite Files for Polylines and Points (*.db)")
 
         if hasattr(QtWidgets.QFileDialog, "ExistingFile"):
             file_dialog.setFileMode(getattr(QtWidgets.QFileDialog,"ExistingFile"))
@@ -96,12 +96,13 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         if file_dialog.exec():
             selected_files = file_dialog.selectedFiles()
             if selected_files:
+                self.on_clear_workspace()
+
                 self.file_path = selected_files[0]
                 self.base_name, _ = os.path.splitext(self.file_path)
 
                 self.fileType = FileType.get_fileType(self.file_path)
 
-                self.on_clear_workspace()
                 if self.vtkWidget:
                     self.vtkWidget.hide_dialog()
 
@@ -178,6 +179,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         )
 
     def open_csv_file(self, openNew=True):
+        """ open csv file for polylines data"""
 
         if self.file_path is None:
             return
@@ -186,14 +188,14 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
 
         self.vtkWidget.import_file(self.file_path, FileType.CSV, newFile=openNew)
 
-        self.is_db_open = False
+        #self.is_db_open = False
 
         self.treeview_setup()
+        self.tableview_release()
 
         self.statusbar.showMessage(
             f"Imported data from the file {self.file_path}."
         )
-        self.tableview_release()
 
     def treeview_setup(self):
 
@@ -228,6 +230,10 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
                 root_item.setIcon(QIcon(u":/icons/srg.svg"))  # Set icon for the root node
                 self.treeview_populate_points(model, root_item)
                 self.header_label += f" ({point_count}P)"
+            elif self.fileType == FileType.CSV:
+                root_item.setIcon(QIcon(u":/icons/csv.svg"))  # Set icon for the root node
+                self.treeview_populate_polylines(model, root_item)
+                self.header_label += f" ({polyline_count}P)"
             else:
                 return
 
@@ -293,6 +299,8 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         self.point_idx = 1
         self.tableview_release()
         self.header_label = ""
+        if self.file_path:
+            self.fileType = None
 
     def on_export(self):
         """Handle the 'Export to database' action."""
@@ -376,7 +384,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
     def on_append_file(self):
         """Handle the 'Open File' action for .xyz files."""
 
-        if self.is_db_open:
+        if self.fileType == FileType.DB:
             if hasattr(QMessageBox, "Ok"):
                 QMessageBox.information(
                     self,
@@ -400,7 +408,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             home_dir = os.path.expanduser("~")
             file_dialog.setDirectory(home_dir)
 
-        file_dialog.setNameFilter("XYZ Files (*.xyz);;SRG Files (*.srg)")
+        file_dialog.setNameFilter("XYZ Files for Polylines (*.xyz);;CSV Files for Polylines (*.csv);;SRG Files for Points (*.srg)")
 
         if hasattr(QtWidgets.QFileDialog, "ExistingFile"):
             file_dialog.setFileMode(getattr(QtWidgets.QFileDialog,"ExistingFile"))
@@ -639,11 +647,12 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         if self.db and self.db.isOpen() and self.file_path:
             self.db.close()
             QSqlDatabase.removeDatabase(self.file_path)
-            self.is_db_open = False
+            #self.is_db_open = False
 
     def on_heatmap(self):
+        """ Open a function to use heatmap """
         # Cannot perform heatmap operation on files only with database
-        if not self.is_db_open:
+        if not self.fileType == FileType.DB:
             if hasattr(QMessageBox, "Ok"):
                 QMessageBox.information(
                     self,
@@ -929,7 +938,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
 
     def on_tab_changed(self, index):
         """Handle tab change events."""
-        if index == 0 and self.vtkWidget and self.is_db_open:  # First tab (VTK widget)
+        if index == 0 and self.vtkWidget and self.fileType == FileType.DB:  # First tab (VTK widget)
             self.vtkWidget.polylines_update_data()
 
 def main():

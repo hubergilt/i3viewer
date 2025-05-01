@@ -461,8 +461,10 @@ class i3vtkWidget(QWidget):
         self.UpdateView()
 
     def OnHeatMap(self):
+        print("OnHeapMap")
         if self.model and self.model.polylines:
             tonelajes = [polyline[0][5] if polyline[0][5] is not None else 0 for polyline in self.model.polylines.values()]
+            print(tonelajes)
             min_tonelaje = min(tonelajes)
             max_tonelaje = max(tonelajes)
             for polyline_id, polyline in self.model.polylines.items():

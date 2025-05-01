@@ -25,8 +25,12 @@ class i3model:
         polylines = None
         if fileType == FileType.DB:
             polylines = self.polylines_read_table()
+        elif fileType == FileType.XYZ:
+            polylines = self.polylines_read_xyz_file()
+        elif fileType == FileType.CSV:
+            polylines = self.polylines_read_csv_file()
         else:
-            polylines = self.polylines_read_file()
+            return []
 
         if polylines:
             self.polylines.update(polylines)
@@ -37,7 +41,7 @@ class i3model:
         if polylines:
             self.polylines.update(polylines)
 
-    def polylines_read_file(self):
+    def polylines_read_xyz_file(self):
         """reads the xyz file and stores polylines with gradient values (multiplied by 100)."""
         polylines = {}
         polylines[self.polyline_id] = []
@@ -87,14 +91,14 @@ class i3model:
                     if len(parts) == 4:
                         name, *xyz = parts
                         x, y, z = map(
-                            lambda v: round(float(v), 3), *xyz
+                            lambda v: round(float(v), 3), xyz
                         )  # round to 3 decimals
 
                         # compute gradient
                         if not polylines[self.polyline_id]:  # first point in polyline
                             gradient = 0.0
                         else:
-                            prev_x, prev_y, prev_z, _ = polylines[self.polyline_id][-1]
+                            prev_x, prev_y, prev_z, *_ = polylines[self.polyline_id][-1]
                             delta_z = z - prev_z
                             distance = math.sqrt((x - prev_x) ** 2 + (y - prev_y) ** 2)
                             gradient = (delta_z / distance) * 100 if distance != 0 else 0.0  # multiply by 100
@@ -113,16 +117,14 @@ class i3model:
 
         cursor.execute(
             """
-            SELECT polyline_id, X, Y, Z, gradient,
+            SELECT polyline_id, X, Y, Z, gradient, route, tonne,
                 "velocidad máxima",
-                "tonelaje de material por carretera",
                 "resistencia a la rodadura",
                 "límite máximo de velocidad",
                 "velocidad de frenado",
                 "rimpull",
                 "retardo",
-                "consumo de combustible",
-                "nombre de la ruta"
+                "consumo de combustible"
                 FROM polylines ORDER BY polyline_id, point_id
             """)
         data = cursor.fetchall()
@@ -201,16 +203,16 @@ class i3model:
                 X REAL,
                 Y REAL,
                 Z REAL,
-                "gradient" REAL,
+                gradient REAL,
+                route TEXT,
+                tonne REAL,
                 "velocidad máxima" REAL,
-                "tonelaje de material por carretera" REAL,
                 "resistencia a la rodadura" REAL,
                 "límite máximo de velocidad" REAL,
                 "velocidad de frenado" REAL,
                 "rimpull" REAL,
                 "retardo" REAL,
                 "consumo de combustible" REAL,
-                "nombre de la ruta" TEXT,
                 PRIMARY KEY (polyline_id, point_id)
             )
         """
@@ -221,10 +223,10 @@ class i3model:
 
         for polyline_id, points in self.polylines.items():
             point_id = 1
-            for x, y, z, g, *_ in points:
+            for x, y, z, g, r, *_ in points:
                 cursor.execute(
-                    "INSERT INTO polylines (polyline_id, point_id, X, Y, Z, gradient) VALUES (?, ?, ?, ?, ?, ?)",
-                    (polyline_id, point_id, x, y, z, g),
+                    "INSERT INTO polylines (polyline_id, point_id, X, Y, Z, gradient, route) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (polyline_id, point_id, x, y, z, g, r),
                 )
                 point_id += 1
 
@@ -397,7 +399,7 @@ class i3model:
         return actor
 
     def points_save_database(self, db_path):
-        """Saves the polylines data into the SQLite database."""
+        """Saves the points data into the SQLite database."""
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
 

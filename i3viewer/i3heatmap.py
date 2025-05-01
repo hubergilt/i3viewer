@@ -41,19 +41,18 @@ class HeatMapDialog(QDialog, Ui_Dialog):
     def import_routes_file(self):
         """Handle importing the routes file"""
         file_path, _=QFileDialog.getOpenFileName(
-            self, "Select Routes File", "", "Text Files (*.txt)"
+            self, "Select Routes File", "", "Text Files for Routes (*.txt)"
         )
 
         if file_path:
             self.routes_file=file_path
             self.ui.pushButton.setText(f"{file_path.split('/')[-1]}")
             self.ui.pushButton.setIcon(QIcon(u":/icons/check.svg"))
-            # self.ui.pushButton.setStyleSheet("text-align: left;")
 
     def import_tonnes_file(self):
         """Handle importing the tonnes file"""
         file_path, _=QFileDialog.getOpenFileName(
-            self, "Select Tonnes File", "", "CSV Files (*.csv)"
+            self, "Select Tonnes File", "", "CSV Files for Tonnes (*.csv)"
         )
 
         if file_path:
@@ -61,7 +60,6 @@ class HeatMapDialog(QDialog, Ui_Dialog):
             self.ui.pushButton_2.setText(
                 f"{file_path.split('/')[-1]}")
             self.ui.pushButton_2.setIcon(QIcon(u":/icons/check.svg"))
-            # self.ui.pushButton_2.setStyleSheet("text-align: left;")
 
     def validate_files(self):
         """Validate the selected files before processing"""
