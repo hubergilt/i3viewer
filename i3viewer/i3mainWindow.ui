@@ -213,7 +213,9 @@
    <attribute name="toolBarBreak">
     <bool>false</bool>
    </attribute>
+   <addaction name="actionheatmapcfg"/>
    <addaction name="actionHeatMap"/>
+   <addaction name="separator"/>
    <addaction name="actionBackward"/>
    <addaction name="labelPeriod"/>
    <addaction name="actionForward"/>
@@ -396,6 +398,9 @@
    </property>
   </action>
   <action name="actionHeatMap">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
    <property name="icon">
     <iconset resource="icons.qrc">
      <normaloff>:/icons/heatmap.svg</normaloff>:/icons/heatmap.svg</iconset>
@@ -421,7 +426,7 @@
   </action>
   <action name="labelPeriod">
    <property name="text">
-    <string>Period</string>
+    <string>P: 0/0</string>
    </property>
    <property name="toolTip">
     <string>Period Value</string>
@@ -437,6 +442,15 @@
    </property>
    <property name="toolTip">
     <string>Forward Period</string>
+   </property>
+  </action>
+  <action name="actionheatmapcfg">
+   <property name="icon">
+    <iconset resource="icons.qrc">
+     <normaloff>:/icons/heatmapcfg.svg</normaloff>:/icons/heatmapcfg.svg</iconset>
+   </property>
+   <property name="text">
+    <string>heatmapcfg</string>
    </property>
   </action>
  </widget>

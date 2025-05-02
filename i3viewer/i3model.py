@@ -63,13 +63,13 @@ class i3model:
                         if not polylines[self.polyline_id]:  # first point in polyline
                             gradient = 0.0
                         else:
-                            prev_x, prev_y, prev_z, _ = polylines[self.polyline_id][-1]
+                            prev_x, prev_y, prev_z, *_ = polylines[self.polyline_id][-1]
                             delta_z = z - prev_z
                             distance = math.sqrt((x - prev_x) ** 2 + (y - prev_y) ** 2)
                             gradient = (delta_z / distance) * 100 if distance != 0 else 0.0  # multiply by 100
 
                         # append the point with gradient
-                        polylines[self.polyline_id].append((x, y, z, round(gradient, 3)))  # round gradient to 3 decimals
+                        polylines[self.polyline_id].append((x, y, z, round(gradient, 3), None))  # round gradient to 3 decimals
 
         # remove empty polylines
         polylines = {k: v for k, v in polylines.items() if v}
@@ -432,25 +432,31 @@ class i3model:
         conn.commit()
         conn.close()
 
-    def hasPolylinesTable(self, db_path):
-        return self.table_exists(db_path, "polylines")
+    def hasPolylinesTable(self):
+        return self.table_exists("polylines")
 
-    def hasPointsTable(self, db_path):
-        return self.table_exists(db_path, "points")
+    def hasPointsTable(self):
+        return self.table_exists("points")
 
-    def table_exists(self, db_path, table_name):
+    def hasRoutesTable(self):
+        return self.table_exists("routes")
+
+    def hasTonnesTable(self):
+        return self.table_exists("tonnes")
+
+    def hasRoutesTonnesTable(self):
+        return self.table_exists("routes_tonnes")
+
+    def table_exists(self, table_name):
         """
-        Check if the 'polylines' table exists in the SQLite database.
-
-        Args:
-            db_path (str): Path to the SQLite database file.
-
+        Check if the 'table_name' table exists in the SQLite database.
         Returns:
-            bool: True if the 'polylines' table exists, False otherwise.
+            bool: True if the 'table_name' table exists, False otherwise.
         """
         try:
             # Connect to the database
-            conn = sqlite3.connect(db_path)
+            #conn = sqlite3.connect(db_path)
+            conn = sqlite3.connect(self.file_path)
             cursor = conn.cursor()
 
             # Query the sqlite_master table for the specified table
@@ -472,5 +478,196 @@ class i3model:
             return result is not None
 
         except sqlite3.Error as e:
-            print(f"An error occurred while checking for the 'polylines' table: {e}")
             return False
+
+    def routes_save_database(self, routes_file):
+        try:
+            # Connect to the SQLite database
+            conn = sqlite3.connect(self.file_path)
+            cursor = conn.cursor()
+
+            # Drop tables if they exist
+            cursor.execute("DROP TABLE IF EXISTS routes")
+            conn.commit()
+
+            # Create the routes table with just two columns: id_route and segments
+            cursor.execute(
+                """
+            CREATE TABLE routes (
+                route_id TEXT,
+                segments TEXT
+            )
+            """
+            )
+
+            # Read and insert routes data, concatenating all segment columns
+            with open(routes_file, "r") as f:
+                csv_reader = csv.reader(f)
+                routes_rows = 0
+                for row in csv_reader:
+                    if not row or len(row) < 1:  # Skip empty rows
+                        continue
+
+                    route_id = row[0]
+
+                    # Concatenate remaining columns with comma as separator
+                    segments = ""
+                    if len(row) > 1:
+                        segments = ",".join(row[1:])
+
+                    cursor.execute("INSERT INTO routes VALUES (?, ?)",
+                                   (route_id, segments))
+                    routes_rows += 1
+
+            conn.commit()
+
+        finally:
+            # Close connection but keep the database file
+            if "conn" in locals():
+                conn.close()
+
+    def tonnes_save_database(self, tonnes_file):
+        try:
+            # Connect to the SQLite database
+            conn = sqlite3.connect(self.file_path)
+            cursor = conn.cursor()
+
+            # Drop tables if they exist
+            cursor.execute("DROP TABLE IF EXISTS tonnes")
+            conn.commit()
+
+            # Create table for tonnes data
+            cursor.execute(
+                """
+            CREATE TABLE tonnes (
+                period INTEGER,
+                route_id TEXT,
+                tonne REAL
+            )
+            """
+            )
+
+            # Read and insert tonnes data
+            with open(tonnes_file, "r") as f:
+                csv_reader = csv.reader(f)
+                tonnes_rows = 0
+                for row in csv_reader:
+                    if len(row) >= 3:  # Ensure we have at least 3 columns
+                        try:
+                            # Convert period to integer and tonne to float
+                            period = int(row[0])
+                            route_id = row[1]
+                            tonne = float(row[2])
+                            cursor.execute(
+                                "INSERT INTO tonnes VALUES (?, ?, ?)",
+                                (period, route_id, tonne),
+                            )
+                            tonnes_rows += 1
+                        except ValueError:
+                            # Handle case where period or tonne can't be converted to int/float
+                            print(
+                                f"Warning: Could not convert period '{row[0]}' to integer or tonne '{row[2]}' to float. Skipping row."
+                            )
+
+            conn.commit()
+
+        finally:
+            # Close connection but keep the database file
+            if "conn" in locals():
+                conn.close()
+
+    def routes_tonnes_save_database(self):
+        try:
+            # Connect to the SQLite database
+            conn = sqlite3.connect(self.file_path)
+            cursor = conn.cursor()
+
+            # Drop tables if they exist
+            cursor.execute("DROP TABLE IF EXISTS routes_tonnes")
+            conn.commit()
+
+            # Create a new table to store the joined results
+            # Create joined table - ensure proper column order and formatting
+            create_joined_sql = """
+            CREATE TABLE routes_tonnes AS
+            SELECT
+                t.period,
+                r.route_id,
+                t.tonne,
+                r.segments
+            FROM tonnes t
+            JOIN routes r ON t.route_id = r.route_id
+            ORDER BY t.period, r.route_id
+            """
+
+            cursor.execute(create_joined_sql)
+            conn.commit()
+
+        finally:
+            # Close connection but keep the database file
+            if "conn" in locals():
+                conn.close()
+
+    def hasPeriods(self):
+        try:
+            # Connect to the SQLite database
+            conn = sqlite3.connect(self.file_path)
+            cursor = conn.cursor()
+
+            # Get rows count if it exist
+            cursor.execute("SELECT count(*) FROM routes_tonnes")
+            result = cursor.fetchone()
+
+            if result:
+                return True
+            else:
+                return False
+
+        finally:
+            # Close connection but keep the database file
+            if "conn" in locals():
+                conn.close()
+
+    def getMaxPeriod(self):
+        try:
+            # Connect to the SQLite database
+            conn = sqlite3.connect(self.file_path)
+            cursor = conn.cursor()
+
+            # Get rows count if it exist
+            cursor.execute("SELECT max(period) FROM routes_tonnes")
+            result = cursor.fetchone()
+
+            if result:
+                return result[0]
+            else:
+                return 0
+
+        finally:
+            # Close connection but keep the database file
+            if "conn" in locals():
+                conn.close()
+
+    def updateRoutesTonnes(self, period):
+        try:
+            # Connect to the SQLite database
+            conn = sqlite3.connect(self.file_path)
+            cursor = conn.cursor()
+
+            # Update each polyline with the calculated total_tonnes
+            update_sql = """
+            UPDATE polylines
+            SET tonne = (
+                SELECT COALESCE(SUM(rt.tonne), 0)
+                FROM routes_tonnes rt
+                WHERE rt.period = ?
+                AND rt.segments LIKE '%' || polylines.route || '%'
+            )
+            """
+            cursor.execute(update_sql, (period,))
+            conn.commit()
+
+        finally:
+            # Close connection but keep the database file
+            if "conn" in locals():
+                conn.close()

@@ -33,7 +33,7 @@
      <item row="0" column="1">
       <widget class="QPushButton" name="pushButton">
        <property name="styleSheet">
-        <string notr="true">QPushButton { layout-direction: right-to-left; }</string>
+        <string notr="true"/>
        </property>
        <property name="text">
         <string>Import routes table...</string>
@@ -53,6 +53,9 @@
      </item>
      <item row="1" column="1">
       <widget class="QPushButton" name="pushButton_2">
+       <property name="styleSheet">
+        <string notr="true"/>
+       </property>
        <property name="text">
         <string>Import tonnes table...</string>
        </property>
@@ -75,8 +78,15 @@
     <layout class="QHBoxLayout" name="horizontalLayout">
      <item>
       <widget class="QPushButton" name="pushButton_4">
+       <property name="styleSheet">
+        <string notr="true"/>
+       </property>
        <property name="text">
         <string>Load Configuration</string>
+       </property>
+       <property name="icon">
+        <iconset resource="icons.qrc">
+         <normaloff>:/icons/cross.svg</normaloff>:/icons/cross.svg</iconset>
        </property>
       </widget>
      </item>

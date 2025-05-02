@@ -25,3 +25,13 @@ class FileType(Enum):
                 return FileType.TXT
             else:
                 return None
+
+
+class HeatMapCfg(Enum):
+    """Represents the possible configuration for HeatMap"""
+
+    INIT = "init"
+    OPEN = "open"
+    CONF = "conf"
+    CLEAR = "clear"
+    PERIOD = "period"

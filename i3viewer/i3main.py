@@ -4,13 +4,13 @@ import os
 from PySide6 import QtWidgets
 from PySide6.QtSql import QSqlDatabase, QSqlTableModel
 from PySide6.QtCore import Qt, QItemSelectionModel
-from PySide6.QtWidgets import QFileDialog, QStyledItemDelegate, QMessageBox, QTreeView, QMenu
+from PySide6.QtWidgets import QFileDialog, QStyledItemDelegate, QMessageBox, QTreeView, QMenu, QDialog
 from PySide6.QtGui import QStandardItem, QStandardItemModel, QIcon
 
 from i3viewer.i3mainWindow import Ui_mainWindow  # Import the generated UI class
 from i3viewer.i3help import HelpDialog
 from i3viewer.i3heatmap import HeatMapDialog
-from i3viewer.i3enums import FileType
+from i3viewer.i3enums import FileType, HeatMapCfg
 
 class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
     def __init__(self):
@@ -41,11 +41,11 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         self.polyline_idx = 1
         self.point_idx = 1
         self.header_label = ""
-        #self.is_db_open = False
-        self.labelPeriod.setText(f"period:00")
-        self.actionBackward.setDisabled(True)
-        self.labelPeriod.setDisabled(True)
-        self.actionForward.setDisabled(True)
+
+        self.config_heatmap(HeatMapCfg.INIT)
+
+        self.currentPeriod = 1
+        self.maxPeriod = 12
 
         self.setup_context_menu()
 
@@ -61,7 +61,6 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         self.actionPlus.triggered.connect(self.on_append_file)
         self.actionMinus.triggered.connect(self.on_clear_workspace)
         self.actionExport.triggered.connect(self.on_export)
-        self.actionHeatMap.triggered.connect(self.on_heatmap)
         self.actionHelp.triggered.connect(self.on_help)
         self.actionExit.triggered.connect(self.on_exit)
         self.actionFront.triggered.connect(self.on_front)
@@ -72,6 +71,11 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         self.actionRight.triggered.connect(self.on_right)
         self.actionIso.triggered.connect(self.on_iso)
         self.actionFit.triggered.connect(self.on_fit)
+
+        self.actionheatmapcfg.triggered.connect(self.on_heatmapcfg)
+        self.actionHeatMap.triggered.connect(self.on_heatmap)
+        self.actionBackward.triggered.connect(self.on_backward)
+        self.actionForward.triggered.connect(self.on_forward)
 
     def on_open_file(self):
         """Handle the 'Open File' action for open *.xyz, *.srg, *.db files"""
@@ -127,12 +131,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         if self.file_path is None:
             return
 
-        #self.db_path = self.base_name + ".db"
-
         self.vtkWidget.import_file(self.file_path, FileType.XYZ, newFile=openNew)
-
-        #self.is_db_open = False
-
         self.treeview_setup()
         self.tableview_release()
 
@@ -146,13 +145,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         if self.file_path is None:
             return
 
-        #base_name, _ = os.path.splitext(self.file_path)
-        #self.db_path = base_name + ".db"
-
         self.vtkWidget.import_file(self.file_path, FileType.SRG, newFile=openNew)
-
-        #self.is_db_open = False
-
         self.treeview_setup()
         self.tableview_release()
 
@@ -162,17 +155,15 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
 
     def open_db_file(self):
         """ open db file for polylines and points data"""
-        #self.db_path = self.file_path
         if self.file_path is None:
             return
 
         self.vtkWidget.import_file(self.file_path, FileType.DB, newFile=True)
 
-        #self.is_db_open = True
-
         self.treeview_setup()
         self.tableview_release()
         self.tableview_setup()
+        self.config_heatmap(HeatMapCfg.OPEN)
 
         self.statusbar.showMessage(
             f"Imported data from the file {self.file_path}."
@@ -184,12 +175,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         if self.file_path is None:
             return
 
-        #self.db_path = self.base_name + ".db"
-
         self.vtkWidget.import_file(self.file_path, FileType.CSV, newFile=openNew)
-
-        #self.is_db_open = False
-
         self.treeview_setup()
         self.tableview_release()
 
@@ -233,7 +219,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             elif self.fileType == FileType.CSV:
                 root_item.setIcon(QIcon(u":/icons/csv.svg"))  # Set icon for the root node
                 self.treeview_populate_polylines(model, root_item)
-                self.header_label += f" ({polyline_count}P)"
+                self.header_label += f" ({polyline_count}L)"
             else:
                 return
 
@@ -301,6 +287,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         self.header_label = ""
         if self.file_path:
             self.fileType = None
+        self.config_heatmap(HeatMapCfg.CLEAR)
 
     def on_export(self):
         """Handle the 'Export to database' action."""
@@ -421,9 +408,6 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
 
                 self.fileType = FileType.get_fileType(self.file_path)
 
-                #if self.vtkWidget:
-                #    self.vtkWidget.hide_dialog()
-
                 # Switch to the first tab of the tabWidget
                 self.tabWidget.setCurrentIndex(0)  # Index 0 corresponds to the first tab
 
@@ -536,15 +520,14 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             f"Total rows: {total_rows} saved in the database {self.file_path}."
         )
 
-
     def tableview_setup(self):
         if self.vtkWidget.model is None:
             return
-        if self.vtkWidget.model.hasPointsTable(self.file_path):
+        model = self.vtkWidget.model
+        if model.hasPointsTable():
             self.tableview_setup_points()
-        if self.vtkWidget.model.hasPolylinesTable(self.file_path):
+        if model.hasPolylinesTable():
             self.tableview_setup_polylines()
-
 
     def tableview_setup_points(self):
         """Sets up the TableView for the points table."""
@@ -633,41 +616,15 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
                 self.tableModelPoints.fetchMore()
 
     def tableview_release(self):
-        #model = self.vtkWidget.model
         if self.tableModelPolylines:
             self.tableViewPolylines.setModel(None)
             self.tableModelPolylines = None
-            #if model:
-            #    model.polylines = {}
         if self.tableModelPoints:
             self.tableViewPoints.setModel(None)
             self.tableModelPoints = None
-            #if model:
-            #    model.points = {}
         if self.db and self.db.isOpen() and self.file_path:
             self.db.close()
             QSqlDatabase.removeDatabase(self.file_path)
-            #self.is_db_open = False
-
-    def on_heatmap(self):
-        """ Open a function to use heatmap """
-        # Cannot perform heatmap operation on files only with database
-        if not self.fileType == FileType.DB:
-            if hasattr(QMessageBox, "Ok"):
-                QMessageBox.information(
-                    self,
-                    "HeatMap Tool Dialog",
-                    "Cannot perform heamap on the current file, it only works on dababase",
-                    getattr(QMessageBox, "Ok")
-                )
-            return
-
-        if self.vtkWidget:
-            # Switch to the first tab of the tabWidget
-            self.tabWidget.setCurrentIndex(0)  # Index 0 corresponds to the first tab
-            self.vtkWidget.OnHeatMap()
-            dialog = HeatMapDialog()
-            dialog.exec()
 
     def on_help(self):
         help = HelpDialog(self)
@@ -721,8 +678,16 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             self.vtkWidget.OnFitView()
 
     def on_exit(self):
-        """Handle the 'Exit' action."""
-        self.close()
+        if hasattr(QMessageBox, "Yes") or hasattr(QMessageBox, "No"):
+            reply = QMessageBox.question(
+                self,
+                "Confirm Exit",
+                "Are you sure you want to exit?",
+                getattr(QMessageBox, "Yes") | getattr(QMessageBox, "No"),
+                getattr(QMessageBox, "No"),  # Default is No
+            )
+            if reply == getattr(QMessageBox, "Yes"):
+                self.close()
 
     def closeEvent(self, event):
         """Override closeEvent to close the dialog when the application is closed."""
@@ -940,6 +905,103 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         """Handle tab change events."""
         if index == 0 and self.vtkWidget and self.fileType == FileType.DB:  # First tab (VTK widget)
             self.vtkWidget.polylines_update_data()
+
+    def config_heatmap(self, heatmapcfg, checked=True):
+        """Configuration for control ui activation"""
+        model = self.vtkWidget.model
+        if not model and heatmapcfg != HeatMapCfg.INIT:
+            return
+
+        if heatmapcfg == HeatMapCfg.INIT:
+            self.config_heatmap_init()
+        elif heatmapcfg == HeatMapCfg.OPEN or heatmapcfg == HeatMapCfg.CONF:
+            if model and model.hasRoutesTonnesTable():
+                self.actionHeatMap.setEnabled(True)
+        elif heatmapcfg == HeatMapCfg.CLEAR:
+            self.actionHeatMap.setDisabled(True)
+        elif heatmapcfg == HeatMapCfg.PERIOD:
+            if checked:
+                self.currentPeriod = 0
+                self.actionBackward.setEnabled(True)
+                self.labelPeriod.setEnabled(True)
+                self.actionForward.setEnabled(True)
+            else:
+                self.labelPeriod.setText(f"P: 00/00")
+                self.actionBackward.setDisabled(True)
+                self.labelPeriod.setDisabled(True)
+                self.actionForward.setDisabled(True)
+
+    def config_heatmap_init(self):
+        self.labelPeriod.setText(f"P: 00/00")
+        self.actionHeatMap.setDisabled(True)
+        self.actionBackward.setDisabled(True)
+        self.labelPeriod.setDisabled(True)
+        self.actionForward.setDisabled(True)
+
+    def on_heatmapcfg(self):
+        """ Open a function to use heatmap """
+        # Cannot perform heatmap operation on files only with database
+        if not self.fileType == FileType.DB:
+            if hasattr(QMessageBox, "Ok"):
+                QMessageBox.information(
+                    self,
+                    "HeatMap Tool Dialog",
+                    "Cannot perform heamap on the current file, it only works on dababase",
+                    getattr(QMessageBox, "Ok")
+                )
+            return
+
+        if self.vtkWidget:
+            model = self.vtkWidget.model
+            if not model:
+                return
+            # Switch to the first tab of the tabWidget
+            self.tabWidget.setCurrentIndex(0)  # Index 0 corresponds to the first tab
+            dialog = HeatMapDialog(self, model)
+            result = dialog.exec()
+            if hasattr(QDialog, "Accepted") and result == getattr(QDialog,"Accepted"):
+                self.config_heatmap(HeatMapCfg.CONF)
+
+    def on_heatmap(self, checked):
+        model = self.vtkWidget.model
+        if not model:
+            return
+        if model.hasPeriods():
+            self.maxPeriod = model.getMaxPeriod()
+            self.labelPeriod.setText(f"P: 01/{self.maxPeriod:02d}")
+            model.updateRoutesTonnes(1)
+            self.vtkWidget.polylines_update_data()
+            self.vtkWidget.OnHeatMap(checked)
+        self.config_heatmap(HeatMapCfg.PERIOD, checked)
+
+    def on_backward(self):
+        if self.currentPeriod > 1:
+            self.currentPeriod -= 1
+        else:
+            self.currentPeriod = self.maxPeriod
+
+        self.labelPeriod.setText(f"P: {self.currentPeriod:02d}/{self.maxPeriod:02d}")
+
+        model = self.vtkWidget.model
+        if not model:
+            return
+        model.updateRoutesTonnes(self.currentPeriod)
+        self.vtkWidget.polylines_update_data()
+        self.vtkWidget.OnHeatMap(True)
+
+    def on_forward(self):
+        if self.currentPeriod < self.maxPeriod:
+            self.currentPeriod += 1
+        else: self.currentPeriod = 1
+
+        self.labelPeriod.setText(f"P: {self.currentPeriod:02d}/{self.maxPeriod:02d}")
+
+        model = self.vtkWidget.model
+        if not model:
+            return
+        model.updateRoutesTonnes(self.currentPeriod)
+        self.vtkWidget.polylines_update_data()
+        self.vtkWidget.OnHeatMap(True)
 
 def main():
     app = QtWidgets.QApplication(sys.argv)

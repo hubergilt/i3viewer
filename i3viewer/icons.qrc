@@ -1,5 +1,6 @@
 <RCC>
   <qresource prefix="/">
+    <file>icons/heatmapcfg.svg</file>
     <file>icons/csv.svg</file>
     <file>icons/forward.svg</file>
     <file>icons/cross.svg</file>

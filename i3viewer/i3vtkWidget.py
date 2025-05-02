@@ -21,7 +21,6 @@ class i3vtkWidget(QWidget):
         self.selected_actor = None
         self.polylineDialog = PolylineDialog(0, 0, 0, [])
         self.pointDialog = PointDialog(0, 0, 0, 0, "")
-        self.heatMapOn = True
 
         if self.Parent == None:
             self.resize(500, 500)
@@ -46,10 +45,10 @@ class i3vtkWidget(QWidget):
             self.model.point_id = 1
 
         if fileType == FileType.DB:
-            if self.model.hasPointsTable(file_path):
+            if self.model.hasPointsTable():
                 actors = self.model.points_format_actors(fileType)
                 self.actors.extend(actors)
-            if self.model.hasPolylinesTable(file_path):
+            if self.model.hasPolylinesTable():
                 actors = self.model.polylines_format_actors(fileType)
                 self.actors.extend(actors)
         elif fileType == FileType.XYZ or fileType == FileType.CSV:
@@ -460,11 +459,9 @@ class i3vtkWidget(QWidget):
         self.ResetCamera()
         self.UpdateView()
 
-    def OnHeatMap(self):
-        print("OnHeapMap")
+    def OnHeatMap(self, enable):
         if self.model and self.model.polylines:
             tonelajes = [polyline[0][5] if polyline[0][5] is not None else 0 for polyline in self.model.polylines.values()]
-            print(tonelajes)
             min_tonelaje = min(tonelajes)
             max_tonelaje = max(tonelajes)
             for polyline_id, polyline in self.model.polylines.items():
@@ -472,7 +469,7 @@ class i3vtkWidget(QWidget):
                 tonelaje = polyline[0][5] if polyline[0][5] is not None else 0
                 actor = self.polylines_get_actor(polyline_id)
 
-                if self.heatMapOn:
+                if enable:
                     color = self.value_to_rainbow_color(tonelaje, min_tonelaje, max_tonelaje)
                 else:
                     color = getattr(actor, "color")
@@ -480,9 +477,7 @@ class i3vtkWidget(QWidget):
                 if hasattr(actor, "GetProperty"):
                     getattr(actor, "GetProperty")().SetColor(color)
 
-            self.heatMapOn = not self.heatMapOn
             self.UpdateView()
-
 
     def value_to_rainbow_color(self, value, min_val=0, max_val=100):
         """Convert a value to a color using the VTK rainbow colormap."""
