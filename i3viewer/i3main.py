@@ -918,10 +918,15 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             if model and model.hasRoutesTonnesTable():
                 self.actionHeatMap.setEnabled(True)
         elif heatmapcfg == HeatMapCfg.CLEAR:
+            self.actionHeatMap.setChecked(False)
             self.actionHeatMap.setDisabled(True)
+            self.labelPeriod.setText(f"P: 00/00")
+            self.actionBackward.setDisabled(True)
+            self.labelPeriod.setDisabled(True)
+            self.actionForward.setDisabled(True)
         elif heatmapcfg == HeatMapCfg.PERIOD:
             if checked:
-                self.currentPeriod = 0
+                self.currentPeriod = 1
                 self.actionBackward.setEnabled(True)
                 self.labelPeriod.setEnabled(True)
                 self.actionForward.setEnabled(True)
@@ -967,6 +972,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         if not model:
             return
         if model.hasPeriods():
+            self.currentPeriod = 1
             self.maxPeriod = model.getMaxPeriod()
             self.labelPeriod.setText(f"P: 01/{self.maxPeriod:02d}")
             model.updateRoutesTonnes(1)
