@@ -1,5 +1,7 @@
 # Makefile for Cross-Compiling Python Executable for Linux and Windows
 
+.PHONY: docs
+
 # Compiler settings for MinGW-w64
 CC := x86_64-w64-mingw32-gcc
 CXX := x86_64-w64-mingw32-g++
@@ -61,6 +63,12 @@ runexe:
 installer:
 	makensis setup.nsi
 
+docs:
+	poetry run sphinx-apidoc -o docs/source i3viewer
+	poetry run make -C docs html
+
 # Clean all build artifacts
 clean:
 	rm -rf $(DIST_DIR) $(BUILD_DIR) __pycache__
+clean-docs:
+	rm -rf docs/html

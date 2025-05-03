@@ -78,7 +78,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         self.actionForward.triggered.connect(self.on_forward)
 
     def on_open_file(self):
-        """Handle the 'Open File' action for open *.xyz, *.srg, *.db files"""
+        """Handle the 'Open File' action for open .xyz, .srg, .db files"""
         # Open a file dialog to select an .xyz file
         file_dialog = QtWidgets.QFileDialog(self)
         if hasattr(QtWidgets.QFileDialog, "Accept"):

@@ -4,6 +4,7 @@ dist-windows
 dist
 i3viewer.geany
 run*.sh
+docs
 .spyproject
 *.pyc
 *.exe
