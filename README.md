@@ -1,6 +1,6 @@
-# _i3dViewer Documentation_
+# i3dViewer Documentation
 
-📦 Project Overview
+📦 ## Project Overview
 
 i3dViewer is a 3D visualization and analysis application written in Python, designed with a modular architecture and UI support via Qt (likely PyQt or PySide), and visualization capabilities using VTK. This project uses Poetry for dependency management and packaging.
 
@@ -12,7 +12,7 @@ i3dViewer is a 3D visualization and analysis application written in Python, desi
 
 📁 Project Structure
 
-i3viewer/ # Main package
+`i3viewer/ # Main package
 │
 ├── i3main.py # Main entry point for the application
 ├── i3mainWindow.py # Main window logic
@@ -40,58 +40,38 @@ i3viewer/ # Main package
 ├── icons/ # Folder with application icons
 ├── icons.qrc # Qt resource collection file
 ├── icons_rc.py # Generated Python file from .qrc
-├── **init**.py # Marks directory as a Python package
+├── **init**.py # Marks directory as a Python package`
 
 ⚙️ Setup & Installation
 
 1. Install Poetry
 
 If not installed:
-
-curl -sSL https://install.python-poetry.org | python3 -
-
-2. Install Project Dependencies
+`curl -sSL https://install.python-poetry.org | python3 -` 2. Install Project Dependencies
 
 From the project root:
-
-cd /home/huber/wd/poetry/i3viewer
-poetry install
-
-3. Activate the Virtual Environment
-
-poetry shell
-
+`cd /home/huber/wd/poetry/i3viewer
+poetry install` 3. Activate the Virtual Environment
+`poetry shell`
 🚀 Running the Application
 
 To run the main application:
-
-poetry run python -m i3viewer.i3main
-
+`poetry run python -m i3viewer.i3main`
 Or if you have defined a [tool.poetry.scripts] entry in pyproject.toml, e.g.:
-
-[tool.poetry.scripts]
-i3viewer = "i3viewer.i3main:main"
-
+`[tool.poetry.scripts]
+i3viewer = "i3viewer.i3main:main"`
 Then simply run:
-
-poetry run i3viewer
-
+`poetry run i3viewer`
 🧪 Testing
 
 A basic tests/ directory is present. To run tests:
-
-poetry run pytest
-
+`poetry run pytest`
 You may need to install pytest via Poetry if not yet added:
-
-poetry add --dev pytest
-
+`poetry add --dev pytest`
 📦 Building Distributables
 
 You have multiple \*.spec files for building with PyInstaller, including ELF and Windows executables. To build:
-
-poetry run pyinstaller 3dviewer.spec
-
+`poetry run pyinstaller 3dviewer.spec`
 For cross-platform builds, customize and use the appropriate .spec file:
 
     3dviewer.elf.spec
@@ -111,13 +91,3 @@ For cross-platform builds, customize and use the appropriate .spec file:
     README.md: Project introduction and usage notes.
 
     .ui files: Designed in Qt Designer, should be converted via pyside6-uic or pyuic5 as needed.
-
-📚 Suggested Enhancements
-
-    Add docs/ folder for Sphinx or MkDocs-based documentation.
-
-    Include more unit tests under tests/.
-
-    Convert .ui files to Python for faster loading or load dynamically.
-
-    Create a CLI entry point via pyproject.toml for easier user execution.
