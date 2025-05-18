@@ -98,7 +98,7 @@ class Ui_Dialog(object):
 
     def retranslateUi(self, Dialog):
         Dialog.setWindowTitle(QCoreApplication.translate("Dialog", u"Dialog", None))
-        self.label_4.setText(QCoreApplication.translate("Dialog", u"Selected Point attributes:", None))
+        self.label_4.setText(QCoreApplication.translate("Dialog", u"<html><head/><body><p><span style=\" font-weight:600;\">Selected Point attributes:</span></p></body></html>", None))
         self.label.setText(QCoreApplication.translate("Dialog", u"Selected Point ID:    ", None))
         self.label_3.setText(QCoreApplication.translate("Dialog", u"X Coordinate Value:", None))
         self.label_2.setText(QCoreApplication.translate("Dialog", u"Y Coordinate Value:", None))

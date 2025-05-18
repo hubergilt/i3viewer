@@ -5,9 +5,9 @@
   <!-- Letter C -->
   <text x="15" y="50" font-family="Arial, sans-serif" font-size="50" font-weight="bold" fill="white">C</text> <!-- Dark gray text -->
   
-  <!-- Letter S -->
-  <text x="35" y="90" font-family="Arial, sans-serif" font-size="50" font-weight="bold" fill="white">S</text> <!-- Dark gray text -->
-  
   <!-- Letter V -->
-  <text x="55" y="50" font-family="Arial, sans-serif" font-size="50" font-weight="bold" fill="white">V</text> <!-- Dark gray text -->
+  <text x="35" y="90" font-family="Arial, sans-serif" font-size="50" font-weight="bold" fill="white">V</text> <!-- Dark gray text -->
+  
+  <!-- Letter S -->
+  <text x="55" y="50" font-family="Arial, sans-serif" font-size="50" font-weight="bold" fill="white">S</text> <!-- Dark gray text -->
 </svg>

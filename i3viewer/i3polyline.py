@@ -138,7 +138,7 @@ class NonModalDialog(QDialog, Ui_Dialog):
                 if rest and len(rest) == 8:
                     for index, val in enumerate(rest[:7]):
                         val_item = QTableWidgetItem(
-                            f"{val:.3f}" if val is not None else ""
+                            f"{val:,.3f}" if val is not None else ""
                         )
                         val_item.setTextAlignment(
                             getattr(Qt, "AlignRight") | getattr(

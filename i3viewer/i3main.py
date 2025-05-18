@@ -1,5 +1,6 @@
 import sys
 import os
+import random
 
 from PySide6 import QtWidgets
 from PySide6.QtSql import QSqlDatabase, QSqlTableModel
@@ -10,7 +11,8 @@ from PySide6.QtGui import QStandardItem, QStandardItemModel, QIcon
 from i3viewer.i3mainWindow import Ui_mainWindow  # Import the generated UI class
 from i3viewer.i3help import HelpDialog
 from i3viewer.i3heatmap import HeatMapDialog
-from i3viewer.i3enums import FileType, HeatMapCfg
+from i3viewer.i3surface import SurfaceDialog
+from i3viewer.i3enums import FileType, HeatMapCfg, SurfaceCfg
 
 class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
     def __init__(self):
@@ -40,14 +42,21 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         self.tableModelPoints = None
         self.polyline_idx = 1
         self.point_idx = 1
+
+        # initial header and context menu configuration for treeview
         self.header_label = ""
+        self.setup_context_menu()
 
+        # initial configuration for HeatMap ToolButtons
         self.config_heatmap(HeatMapCfg.INIT)
-
         self.currentPeriod = 1
         self.maxPeriod = 12
 
-        self.setup_context_menu()
+        # initial setup for surface appearance
+        self.surfacecfg = SurfaceCfg()
+        # Generate and store a random colors for wireframe
+        self.surfacecfg.surface_color = [random.randint(0, 255) / 255.0 for _ in range(3)]
+        self.surfacecfg.wireframe_color = [random.randint(0, 255) / 255.0 for _ in range(3)]
 
         if hasattr(Qt, "CustomContextMenu"):
             self.treeView.setContextMenuPolicy(getattr(Qt, "CustomContextMenu"))
@@ -59,7 +68,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         """Connect UI actions to their respective functions."""
         self.actionOpenFile.triggered.connect(self.on_open_file)
         self.actionPlus.triggered.connect(self.on_append_file)
-        self.actionMinus.triggered.connect(self.on_clear_workspace)
+        self.actionMinus.triggered.connect(self.on_clean_workspace)
         self.actionExport.triggered.connect(self.on_export)
         self.actionHelp.triggered.connect(self.on_help)
         self.actionExit.triggered.connect(self.on_exit)
@@ -72,13 +81,19 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         self.actionIso.triggered.connect(self.on_iso)
         self.actionFit.triggered.connect(self.on_fit)
 
-        self.actionheatmapcfg.triggered.connect(self.on_heatmapcfg)
+        self.actionHeatMapCfg.triggered.connect(self.on_heatmapcfg)
         self.actionHeatMap.triggered.connect(self.on_heatmap)
         self.actionBackward.triggered.connect(self.on_backward)
         self.actionForward.triggered.connect(self.on_forward)
+        self.actionUnpick.triggered.connect(self.on_unpick)
+        self.actionPolyLabel.triggered.connect(self.on_polylabel)
+        self.actionPointLabel.triggered.connect(self.on_pointlabel)
+        self.actionSurface.triggered.connect(self.on_surface)
+        self.actionWireframe.triggered.connect(self.on_wireframe)
+        self.actionSurfaceCfg.triggered.connect(self.on_surface_cfg)
 
     def on_open_file(self):
-        """Handle the 'Open File' action for open .xyz, .srg, .db files"""
+        """Handle the 'Open File' action for open .xyz, .xyzs, .srg, .db files"""
         # Open a file dialog to select an .xyz file
         file_dialog = QtWidgets.QFileDialog(self)
         if hasattr(QtWidgets.QFileDialog, "Accept"):
@@ -92,7 +107,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             home_dir = os.path.expanduser("~")
             file_dialog.setDirectory(home_dir)
 
-        file_dialog.setNameFilter("XYZ Files for Polylines (*.xyz);;CSV Files for Polylines (*.csv);;SRG Files for Points (*.srg);;SQLite Files for Polylines and Points (*.db)")
+        file_dialog.setNameFilter("XYZ Files for Polylines (*.xyz);;CSV Files for Polylines (*.csv);;SRG Files for Points (*.srg);;XYZS Files for Surfaces (*.xyzs);;SQLite Files for Polylines and Points (*.db)")
 
         if hasattr(QtWidgets.QFileDialog, "ExistingFile"):
             file_dialog.setFileMode(getattr(QtWidgets.QFileDialog,"ExistingFile"))
@@ -100,7 +115,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         if file_dialog.exec():
             selected_files = file_dialog.selectedFiles()
             if selected_files:
-                self.on_clear_workspace()
+                self.on_clean_workspace()
 
                 self.file_path = selected_files[0]
                 self.base_name, _ = os.path.splitext(self.file_path)
@@ -115,6 +130,8 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
 
                 if self.fileType == FileType.XYZ:
                     self.open_xyz_file(openNew=True)
+                elif self.fileType == FileType.XYZS:
+                    self.open_xyzs_file(openNew=True)
                 elif self.fileType == FileType.SRG:
                     self.open_srg_file(openNew=True)
                 elif self.fileType == FileType.DB:
@@ -139,6 +156,18 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             f"Imported data from the file {self.file_path}."
         )
 
+    def open_xyzs_file(self, openNew=True):
+        """ open  xyzs file for sufaces data"""
+        if self.file_path is None:
+            return
+
+        self.vtkWidget.import_file(self.file_path, FileType.XYZS, newFile=openNew)
+        self.treeview_setup()
+        self.tableview_release()
+
+        self.statusbar.showMessage(
+            f"Imported data from the file {self.file_path}."
+        )
 
     def open_srg_file(self, openNew=True):
         """ open  srg file for points data"""
@@ -276,9 +305,14 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
                 point_root.appendRow(point_item)
             root_item.appendRow(point_root)
 
-    def on_clear_workspace(self):
+    def on_clean_workspace(self):
         if self.vtkWidget:
             self.vtkWidget.RemoveAll()
+            self.actionPolyLabel.setChecked(False)
+            self.actionPointLabel.setChecked(False)
+            self.vtkWidget.CleanPolylabels()
+            self.vtkWidget.CleanPointlabels()
+            self.vtkWidget.UpdateView(False)
         self.tree_model = QStandardItemModel()
         self.treeView.setModel(self.tree_model)
         self.polyline_idx = 1
@@ -502,7 +536,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
                     if float_value.is_integer():
                         return str(int(float_value))  # Display as integer
                     else:
-                        return f"{float_value:.3f}"  # Format with 3 decimal places
+                        return f"{float_value:,.3f}"  # Format with 3 decimal places
                 except (ValueError, TypeError):
                     return super().displayText(value, locale)
 
@@ -586,7 +620,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
                     if float_value.is_integer():
                         return str(int(float_value))
                     else:
-                        return f"{float_value:.3f}"
+                        return f"{float_value:,.3f}"
                 except (ValueError, TypeError):
                     return super().displayText(value, locale)
 
@@ -1009,11 +1043,50 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         self.vtkWidget.polylines_update_data()
         self.vtkWidget.OnHeatMap(True)
 
+    def on_unpick(self, checked):
+        model = self.vtkWidget.model
+        if not model:
+            return
+        self.vtkWidget.unpick = checked
+
+    def on_polylabel(self, checked):
+        model = self.vtkWidget.model
+        if not model:
+            return
+        self.vtkWidget.polylabel = checked
+        self.vtkWidget.OnPolylabels(checked, self.fileType)
+
+    def on_pointlabel(self, checked):
+        model = self.vtkWidget.model
+        if not model:
+            return
+        self.vtkWidget.pointlabel = checked
+        self.vtkWidget.OnPointLabels(checked, self.fileType)
+
+    def on_surface(self, checked):
+        model = self.vtkWidget.model
+        if not model:
+            return
+        self.vtkWidget.surface = checked
+        self.vtkWidget.OnSurfaceReconstruction(checked, self.fileType, self.surfacecfg)
+
+    def on_wireframe(self, checked):
+        model = self.vtkWidget.model
+        if not model:
+            return
+        self.vtkWidget.wireframe = checked
+        self.vtkWidget.OnWireframeReconstruction(checked, self.fileType, self.surfacecfg)
+
+    def on_surface_cfg(self):
+        dialog = SurfaceDialog(self, self.surfacecfg)
+        dialog.exec()
+
+
 def main():
     app = QtWidgets.QApplication(sys.argv)
 
     # Set the application style to Windows
-    app.setStyle("Windows")
+    app.setStyle("Fusion")
 
     window = MainWindowApp()
     window.show()

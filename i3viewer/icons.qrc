@@ -1,11 +1,18 @@
 <RCC>
   <qresource prefix="/">
+    <file>icons/xyzs.svg</file>
+    <file>icons/polyabc.svg</file>
+    <file>icons/surfacecfg.svg</file>
+    <file>icons/pointabc.svg</file>
     <file>icons/heatmapcfg.svg</file>
+    <file>icons/unpick.svg</file>
     <file>icons/csv.svg</file>
     <file>icons/forward.svg</file>
     <file>icons/cross.svg</file>
     <file>icons/check.svg</file>
+    <file>icons/surface.svg</file>
     <file>icons/backward.svg</file>
+    <file>icons/wireframe.svg</file>
     <file>icons/heatmap.svg</file>
     <file>icons/3dviewer.ico</file>
     <file>icons/minus.svg</file>

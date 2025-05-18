@@ -14,9 +14,15 @@ class i3model:
 
         self.polylines = {}
         self.points = {}
+        self.surfaces = {}
+        self.polylabels = {}
+        self.pointlabels = {}
 
         self.polyline_id = 1
         self.point_id = 1
+        self.surface_id = 1
+        self.polylabel_id = 1
+        self.pointlabel_id = 1
 
         self.actors = []
 
@@ -69,7 +75,7 @@ class i3model:
                             gradient = (delta_z / distance) * 100 if distance != 0 else 0.0  # multiply by 100
 
                         # append the point with gradient
-                        polylines[self.polyline_id].append((x, y, z, round(gradient, 3), None))  # round gradient to 3 decimals
+                        polylines[self.polyline_id].append((x, y, z, round(gradient, 3), None, None))  # round gradient to 3 decimals
 
         # remove empty polylines
         polylines = {k: v for k, v in polylines.items() if v}
@@ -104,7 +110,7 @@ class i3model:
                             gradient = (delta_z / distance) * 100 if distance != 0 else 0.0  # multiply by 100
 
                         # append the point with gradient
-                        polylines[self.polyline_id].append((x, y, z, round(gradient, 3), name))  # round gradient to 3 decimals
+                        polylines[self.polyline_id].append((x, y, z, round(gradient, 3), name, None))  # round gradient to 3 decimals
 
         # remove empty polylines
         polylines = {k: v for k, v in polylines.items() if v}
@@ -238,15 +244,16 @@ class i3model:
         points = None
         if fileType == FileType.DB:
             points = self.points_read_table()
+        elif fileType == FileType.SRG:
+            points = self.points_read_srg_file()
         else:
-            points = self.points_read_file()
+            return []
 
         if points:
             self.points.update(points)
-
         return self.points_create_actors()
 
-    def points_read_file(self):
+    def points_read_srg_file(self):
         """Reads the SRG file and store points"""
 
         points = {}
@@ -298,7 +305,6 @@ class i3model:
     def points_create_actors(self):
         """Creates separate VTK actors for each point in self.points."""
         self.actors = []
-        #self.colors = {}
 
         for point_id, vertices in self.points.items():
             actor = self.point_create_actor(point_id, vertices)
@@ -432,6 +438,97 @@ class i3model:
         conn.commit()
         conn.close()
 
+    def surfaces_format_actors(self, fileType):
+        """Executes the full pipeline."""
+        surfaces = None
+        if fileType == FileType.XYZS:
+            surfaces = self.surfaces_read_xyzs_file()
+        else:
+            return []
+
+        if surfaces:
+            self.surfaces.update(surfaces)
+
+        return self.surfaces_create_actors()
+
+    def surfaces_read_xyzs_file(self):
+        """reads the xyzs file and stores surfaces"""
+        surfaces = {}
+        surfaces[self.surface_id] = []
+
+        with open(self.file_path, "r") as file:
+            for line in file:
+                line = line.strip()
+                if line == "$":
+                    self.surface_id += 1  # start a new polyline
+                    surfaces[self.surface_id] = []
+                else:
+                    parts = line.split()
+                    if len(parts) == 3:
+                        x, y, z = map(
+                            lambda v: round(float(v), 3), parts
+                        )  # round to 3 decimals
+
+                        # append the point
+                        surfaces[self.surface_id].append((x, y, z))
+
+        # remove empty surfaces
+        surfaces = {k: v for k, v in surfaces.items() if v}
+        return surfaces
+
+    def surfaces_create_actors(self):
+        """Creates separate VTK actors for each polyline in self.polylines."""
+        self.actors = []
+
+        # Generate and store a random color for this polyline
+        color = [random.randint(0, 255) / 255.0 for _ in range(3)]
+
+        for surface_id, vertices in self.surfaces.items():
+            actor = self.surfaces_create_actor(surface_id, vertices, color)
+            if actor:
+                self.actors.append(actor)
+
+        return self.actors
+
+    def surfaces_create_actor(self, surface_id, vertices, color):
+        """Creates a VTK actor for a given polyline."""
+        if not vertices:
+            return None  # Ignore empty polylines
+
+        points = vtk.vtkPoints()
+        cells = vtk.vtkCellArray()
+        polyline = vtk.vtkPolyLine()
+        polyline.GetPointIds().SetNumberOfIds(len(vertices))
+
+        # Insert points and define polyline connectivity
+        for i, (x, y, z, *_) in enumerate(vertices):
+            point_id = points.InsertNextPoint(x, y, z)
+            polyline.GetPointIds().SetId(i, point_id)
+
+        cells.InsertNextCell(polyline)
+
+        # Create and configure polyline actor
+        return self.surfaces_build_actor(points, cells, color, surface_id)
+
+    def surfaces_build_actor(self, points, cells, color, surface_id):
+        """Helper function to construct and return a VTK actor."""
+        poly_data = vtk.vtkPolyData()
+        poly_data.SetPoints(points)
+        poly_data.SetLines(cells)
+
+        mapper = vtk.vtkPolyDataMapper()
+        mapper.SetInputData(poly_data)
+
+        actor = vtk.vtkActor()
+        actor.SetMapper(mapper)
+        actor.GetProperty().SetRepresentationToSurface()
+        actor.GetProperty().EdgeVisibilityOff()
+        actor.GetProperty().SetColor(color)
+        actor.GetProperty().SetLineWidth(2)
+        setattr(actor, "surface_id", surface_id)
+        setattr(actor, "color", color)
+        return actor
+
     def hasPolylinesTable(self):
         return self.table_exists("polylines")
 
@@ -478,6 +575,7 @@ class i3model:
             return result is not None
 
         except sqlite3.Error as e:
+            print(e.sqlite_errorcode)
             return False
 
     def routes_save_database(self, routes_file):
@@ -671,3 +769,138 @@ class i3model:
             # Close connection but keep the database file
             if "conn" in locals():
                 conn.close()
+
+    def polylabels_create_actor(self, actor, label_text="Polyline Label"):
+        """Creates a 3D label actor at the arc-length midpoint of the polyline in a vtkActor."""
+        # Get the polydata from the actor
+
+        mapper = actor.GetMapper()
+        polyData = mapper.GetInput()
+
+        if polyData is None:
+            raise ValueError("Actor does not contain polydata.")
+
+        points = polyData.GetPoints()
+        lines = polyData.GetLines()
+        lines.InitTraversal()
+
+        idList = vtk.vtkIdList()
+        if not lines.GetNextCell(idList):
+            raise ValueError("No polyline found in polydata.")
+
+        n_points = idList.GetNumberOfIds()
+
+        # Compute arc length
+        arc_lengths = [0.0]
+        total_length = 0.0
+        for i in range(1, n_points):
+            p1 = points.GetPoint(idList.GetId(i - 1))
+            p2 = points.GetPoint(idList.GetId(i))
+            segment_length = vtk.vtkMath.Distance2BetweenPoints(p1, p2) ** 0.5
+            total_length += segment_length
+            arc_lengths.append(total_length)
+
+        half_length = total_length / 2.0
+
+        # Find segment containing the midpoint
+        midpoint = [0.0, 0.0, 0.0]
+        for i in range(1, n_points):
+            if arc_lengths[i] >= half_length:
+                t = ((half_length - arc_lengths[i - 1]) /
+                     (arc_lengths[i] - arc_lengths[i - 1]))
+                p1 = points.GetPoint(idList.GetId(i - 1))
+                p2 = points.GetPoint(idList.GetId(i))
+                midpoint = [p1[j] + t * (p2[j] - p1[j]) for j in range(3)]
+                break
+
+        # Create label actor
+        label = vtk.vtkBillboardTextActor3D()
+        label.SetInput(label_text)
+        label.SetPosition(midpoint)
+        label.GetTextProperty().SetFontSize(9)
+        label.GetTextProperty().SetColor(0, 1, 0)
+
+        return label
+
+    def pointlabels_create_actor(self, actor, label_text="Point Label"):
+        """Creates a label at the first point in the vtkActor's geometry."""
+        mapper = actor.GetMapper()
+        polyData = mapper.GetInput()
+
+        if polyData is None or polyData.GetNumberOfPoints() == 0:
+            raise ValueError("Actor does not contain valid point data.")
+
+        # Use the first point for labeling
+        point = polyData.GetPoint(0)
+
+        # Create the text label
+        label = vtk.vtkBillboardTextActor3D()
+        label.SetInput(label_text)
+        label.SetPosition(point)
+        label.GetTextProperty().SetFontSize(9)
+        label.GetTextProperty().SetColor(1, 1, 0)  # Yellow
+
+        return label
+
+    def surface_reconstruction_actor(self, contour_polydata):
+        """
+        Creates a surface mesh from contour lines using Delaunay triangulation.
+
+        Parameters:
+        contour_polydata: vtkPolyData containing contour lines with elevation data
+
+        Returns:
+        vtkPolyData representing the triangulated surface
+        """
+        # Step 1: Clean the input data to remove duplicates and ensure consistency
+        cleaner = vtk.vtkCleanPolyData()
+        cleaner.SetInputData(contour_polydata)
+        cleaner.SetTolerance(0.001)  # Points within this distance are merged
+        cleaner.Update()
+
+        clean_polydata = cleaner.GetOutput()
+
+        # Step 2: Configure and run the Delaunay triangulation
+        delaunay = vtk.vtkDelaunay2D()
+        delaunay.SetInputData(clean_polydata)
+
+        # Critical parameters:
+        delaunay.SetAlpha(0.0)  # 0.0 gives standard Delaunay, higher values create a more constrained triangulation
+        delaunay.SetTolerance(0.001)  # Controls point merging during triangulation
+        delaunay.SetOffset(5.0)  # Controls bounding triangle size for non-convex inputs
+
+        # Projection plane settings:
+        # 0 = best fitting plane
+        # 1 = XY plane
+        # 2 = YZ plane
+        # 3 = XZ plane
+        delaunay.SetProjectionPlaneMode(0)
+
+        delaunay.Update()
+
+        # Step 3: Transform the triangulation to retain original Z values
+        mesh = delaunay.GetOutput()
+
+        # Optional: Transform mesh if needed for your coordinate system
+
+        # Step 4: Compute normals for proper shading
+        normals = vtk.vtkPolyDataNormals()
+        normals.SetInputData(mesh)
+        normals.SetFeatureAngle(60.0)  # Angle to separate smooth regions
+        normals.ComputePointNormalsOn()
+        normals.ComputeCellNormalsOn()
+        normals.ConsistencyOn()
+        normals.SplittingOff()  # Turn on if you want sharp features
+        normals.Update()
+
+        elevation_mesh = normals.GetOutput()
+
+        # Visualize the result
+        mapper = vtk.vtkPolyDataMapper()
+        mapper.SetInputData(elevation_mesh)
+        #mapper.SetInputData(mesh)
+
+        actor = vtk.vtkActor()
+        actor.SetMapper(mapper)
+
+        return actor

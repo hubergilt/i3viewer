@@ -12,6 +12,7 @@
     "./i3viewer/i3polylineDialog.py",
     "./i3viewer/i3pointDialog.py",
     "./i3viewer/i3heatmapDialog.py",
+    "./i3viewer/i3surfaceDialog.py",
     "./i3viewer/i3helpDialog.py"
   ]
 }

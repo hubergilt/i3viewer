@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle -->
+  <circle cx="100" cy="100" r="90" fill="#55ACEE" stroke="black" stroke-width="6"/>
+  
+  <!-- Inverted red diagonal line (now from bottom-left to top-right) -->
+  <line x1="25" y1="175" x2="175" y2="25" stroke="red" stroke-width="20" stroke-linecap="round"/>
+  
+  <!-- Polyline selection using path -->
+  <path d="M40,120 L65,65 L100,135 L135,50 L160,100" fill="none" stroke="black" stroke-width="10" stroke-linejoin="round"/>
+  
+  <!-- Selection points -->
+  <circle cx="40" cy="120" r="12" fill="white" stroke="black" stroke-width="3"/>
+  <circle cx="65" cy="65" r="12" fill="white" stroke="black" stroke-width="3"/>
+  <circle cx="100" cy="135" r="12" fill="white" stroke="black" stroke-width="3"/>
+  <circle cx="135" cy="50" r="12" fill="white" stroke="black" stroke-width="3"/>
+  <circle cx="160" cy="100" r="12" fill="white" stroke="black" stroke-width="3"/>
+  
+  <!-- Properties indicator -->
+  <path d="M125,125 h50 a8,8 0 0 1 8,8 v34 a8,8 0 0 1 -8,8 h-50 a8,8 0 0 1 -8,-8 v-34 a8,8 0 0 1 8,-8 z" 
+        fill="white" stroke="black" stroke-width="3"/>
+  <path d="M135,142 L165,142 M135,158 L165,158" fill="none" stroke="black" stroke-width="6"/>
+</svg>

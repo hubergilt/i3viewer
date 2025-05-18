@@ -3,7 +3,7 @@ from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QDialog, QFileDialog, QMessageBox
 
 from i3viewer.i3heatmapDialog import \
-    Ui_Dialog  # Import the generated UI class for points
+    Ui_Dialog  # Import the generated UI class for heatmap
 
 
 class HeatMapDialog(QDialog, Ui_Dialog):

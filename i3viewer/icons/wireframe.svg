@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="30 30 140 140">
+  <!-- Icosahedron-based spherical wireframe -->
+  <g stroke="#333" stroke-width="0.8" fill="none" transform="translate(100,100)">
+    
+    <!-- Front hemisphere triangles -->
+    <path d="M0,-70 L60,-35 35,60 Z" />
+    <path d="M0,-70 L-35,60 -60,-35 Z" />
+    <path d="M60,-35 L35,60 70,0 Z" />
+    <path d="M-60,-35 L-70,0 -35,60 Z" />
+    <path d="M35,60 L0,35 70,0 Z" />
+    <path d="M-35,60 L-70,0 0,35 Z" />
+    
+    <!-- Equatorial triangles -->
+    <path d="M60,-35 L70,0 0,-35 Z" />
+    <path d="M-60,-35 L0,-35 -70,0 Z" />
+    <path d="M70,0 L0,35 0,-35 Z" />
+    <path d="M-70,0 L0,-35 0,35 Z" />
+    <path d="M35,60 L0,35 70,0 Z" />
+    <path d="M-35,60 L-70,0 0,35 Z" />
+    
+    <!-- Back hemisphere triangles (dashed) -->
+    <path d="M0,35 L35,60 0,70 Z" stroke-dasharray="2,1" />
+    <path d="M0,35 L0,70 -35,60 Z" stroke-dasharray="2,1" />
+    <path d="M35,60 L0,70 60,35 Z" stroke-dasharray="2,1" />
+    <path d="M-35,60 L-60,35 0,70 Z" stroke-dasharray="2,1" />
+    <path d="M60,35 L0,70 35,-60 Z" stroke-dasharray="2,1" />
+    <path d="M-60,35 L-35,-60 0,70 Z" stroke-dasharray="2,1" />
+    
+    <!-- Vertex markers -->
+    <circle cx="0" cy="-70" r="2" fill="#333" />
+    <circle cx="60" cy="-35" r="1.5" fill="#333" />
+    <circle cx="-60" cy="-35" r="1.5" fill="#333" />
+    <circle cx="35" cy="60" r="1.5" fill="#333" />
+    <circle cx="-35" cy="60" r="1.5" fill="#333" />
+  </g>
+</svg>
