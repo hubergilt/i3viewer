@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>467</width>
-    <height>577</height>
+    <width>507</width>
+    <height>669</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -20,7 +20,7 @@
       <enum>QTabWidget::West</enum>
      </property>
      <property name="currentIndex">
-      <number>0</number>
+      <number>1</number>
      </property>
      <widget class="QWidget" name="tab_3">
       <attribute name="title">
@@ -50,12 +50,63 @@
             </property>
             <layout class="QVBoxLayout" name="verticalLayout_12">
              <item>
+              <widget class="QFrame" name="frame_22">
+               <layout class="QHBoxLayout" name="horizontalLayout_19">
+                <item>
+                 <widget class="QRadioButton" name="radioButtonProfile">
+                  <property name="text">
+                   <string>Profile</string>
+                  </property>
+                  <attribute name="buttonGroup">
+                   <string notr="true">buttonGroup</string>
+                  </attribute>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QComboBox" name="comboBoxSProfile">
+                  <property name="enabled">
+                   <bool>false</bool>
+                  </property>
+                  <item>
+                   <property name="text">
+                    <string>Default</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>Terrain</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>Wireframe</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>Transparent</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>Presentation</string>
+                   </property>
+                  </item>
+                 </widget>
+                </item>
+               </layout>
+              </widget>
+             </item>
+             <item>
               <widget class="QFrame" name="frame">
                <layout class="QHBoxLayout" name="horizontalLayout_20">
                 <item>
                  <widget class="QRadioButton" name="radioButtonRandom">
                   <property name="text">
                    <string>Random</string>
+                  </property>
+                  <property name="checked">
+                   <bool>true</bool>
                   </property>
                   <attribute name="buttonGroup">
                    <string notr="true">buttonGroup</string>
@@ -87,6 +138,9 @@
                 </item>
                 <item>
                  <widget class="QPushButton" name="pushButtonSurface">
+                  <property name="enabled">
+                   <bool>false</bool>
+                  </property>
                   <property name="text">
                    <string>Suraface Color...    </string>
                   </property>
@@ -133,6 +187,9 @@
                 </item>
                 <item>
                  <widget class="QPushButton" name="pushButtonWireframe">
+                  <property name="enabled">
+                   <bool>false</bool>
+                  </property>
                   <property name="text">
                    <string>Wireframe Color...</string>
                   </property>
@@ -257,20 +314,6 @@
         </widget>
        </item>
        <item>
-        <widget class="QLabel" name="label_3">
-         <property name="text">
-          <string/>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QLabel" name="label_4">
-         <property name="text">
-          <string/>
-         </property>
-        </widget>
-       </item>
-       <item>
         <widget class="QLabel" name="label_2">
          <property name="text">
           <string/>
@@ -310,7 +353,12 @@
              </widget>
             </item>
             <item>
-             <widget class="QComboBox" name="comboBoxProfile">
+             <widget class="QComboBox" name="comboBoxDProfile">
+              <item>
+               <property name="text">
+                <string>Default</string>
+               </property>
+              </item>
               <item>
                <property name="text">
                 <string>High Resolution</string>
@@ -329,11 +377,6 @@
               <item>
                <property name="text">
                 <string>Contour Preserving</string>
-               </property>
-              </item>
-              <item>
-               <property name="text">
-                <string>Custom</string>
                </property>
               </item>
              </widget>
@@ -672,47 +715,47 @@
             </layout>
            </widget>
           </item>
-         </layout>
-        </widget>
-       </item>
-       <item>
-        <widget class="QFrame" name="frame_14">
-         <property name="frameShape">
-          <enum>QFrame::StyledPanel</enum>
-         </property>
-         <property name="frameShadow">
-          <enum>QFrame::Raised</enum>
-         </property>
-         <layout class="QHBoxLayout" name="horizontalLayout_18">
           <item>
-           <widget class="QComboBox" name="comboBoxPlane">
-            <item>
-             <property name="text">
-              <string>Best Fitting Plane</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>XY Plane</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>YZ Plane</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>XZ Plane</string>
-             </property>
-            </item>
-           </widget>
-          </item>
-          <item>
-           <widget class="QLabel" name="label_37">
-            <property name="text">
-             <string>Projection Plane Mode:</string>
+           <widget class="QFrame" name="frame_14">
+            <property name="frameShape">
+             <enum>QFrame::StyledPanel</enum>
             </property>
+            <property name="frameShadow">
+             <enum>QFrame::Raised</enum>
+            </property>
+            <layout class="QHBoxLayout" name="horizontalLayout_18">
+             <item>
+              <widget class="QLabel" name="label_37">
+               <property name="text">
+                <string>Projection Plane Mode:</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QComboBox" name="comboBoxPlane">
+               <item>
+                <property name="text">
+                 <string>Best Fitting Plane</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>XY Plane</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>YZ Plane</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>XZ Plane</string>
+                </property>
+               </item>
+              </widget>
+             </item>
+            </layout>
            </widget>
           </item>
          </layout>
@@ -725,14 +768,14 @@
    <item>
     <layout class="QHBoxLayout" name="horizontalLayout_3">
      <item>
-      <widget class="QPushButton" name="pushButton_4">
+      <widget class="QPushButton" name="pushButtonAccept">
        <property name="text">
         <string>Accept</string>
        </property>
       </widget>
      </item>
      <item>
-      <widget class="QPushButton" name="pushButton_3">
+      <widget class="QPushButton" name="pushButtonReject">
        <property name="text">
         <string>Cancel</string>
        </property>

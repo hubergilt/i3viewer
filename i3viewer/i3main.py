@@ -12,7 +12,7 @@ from i3viewer.i3mainWindow import Ui_mainWindow  # Import the generated UI class
 from i3viewer.i3help import HelpDialog
 from i3viewer.i3heatmap import HeatMapDialog
 from i3viewer.i3surface import SurfaceDialog
-from i3viewer.i3enums import FileType, HeatMapCfg, SurfaceCfg
+from i3viewer.i3enums import DelaunayCfg, FileType, HeatMapCfg, SurfaceCfg
 
 class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
     def __init__(self):
@@ -42,6 +42,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         self.tableModelPoints = None
         self.polyline_idx = 1
         self.point_idx = 1
+        self.surface_idx = 1
 
         # initial header and context menu configuration for treeview
         self.header_label = ""
@@ -57,6 +58,9 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         # Generate and store a random colors for wireframe
         self.surfacecfg.surface_color = [random.randint(0, 255) / 255.0 for _ in range(3)]
         self.surfacecfg.wireframe_color = [random.randint(0, 255) / 255.0 for _ in range(3)]
+
+        # initial setup for surface appearance
+        self.delaunaycfg = DelaunayCfg()
 
         if hasattr(Qt, "CustomContextMenu"):
             self.treeView.setContextMenuPolicy(getattr(Qt, "CustomContextMenu"))
@@ -162,6 +166,8 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             return
 
         self.vtkWidget.import_file(self.file_path, FileType.XYZS, newFile=openNew)
+        self.vtkWidget.OnSurfaceReconstruction(True, self.fileType, self.surfacecfg, self.delaunaycfg)
+        self.actionSurface.setChecked(True)
         self.treeview_setup()
         self.tableview_release()
 
@@ -231,12 +237,14 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
 
             polyline_count = len(model.polylines)
             point_count = len(model.points)
+            surface_count = len(model.surfaces)
 
             if self.fileType == FileType.DB:
                 root_item.setIcon(QIcon(u":/icons/db.svg"))  # Set icon for the root node
                 self.treeview_populate_polylines(model, root_item)
                 self.treeview_populate_points(model, root_item)
-                self.header_label += f" ({polyline_count}L y {point_count}P)"
+                self.treeview_populate_surfaces(model, root_item)
+                self.header_label += f" ({polyline_count}L;{point_count}P;{surface_count}S)"
             elif self.fileType == FileType.XYZ:
                 root_item.setIcon(QIcon(u":/icons/xyz.svg"))  # Set icon for the root node
                 self.treeview_populate_polylines(model, root_item)
@@ -249,6 +257,10 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
                 root_item.setIcon(QIcon(u":/icons/csv.svg"))  # Set icon for the root node
                 self.treeview_populate_polylines(model, root_item)
                 self.header_label += f" ({polyline_count}L)"
+            elif self.fileType == FileType.XYZS:
+                root_item.setIcon(QIcon(u":/icons/xyzs.svg"))  # Set icon for the root node
+                self.treeview_populate_surfaces(model, root_item)
+                self.header_label += f" ({surface_count}S)"
             else:
                 return
 
@@ -305,6 +317,31 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
                 point_root.appendRow(point_item)
             root_item.appendRow(point_root)
 
+    def treeview_populate_surfaces(self, model, root_item):
+        """Populates the tree view with surfaces."""
+        if hasattr(model, 'surfaces'):
+
+#            surfaces=dict(sorted(model.surfaces.items())[self.surface_idx-1:])
+
+            surface_root = QStandardItem("Surface")
+            surface_root.setIcon(QIcon(u":/icons/polyline.svg"))
+
+#            for surface_id, points in surfaces.items():
+#                surface_item = QStandardItem(f"Polyline {surface_id}")
+#                surface_item.setIcon(QIcon(u":/icons/polyline.svg"))
+#                self.surface_idx += 1
+#                setattr(surface_item, "surface_id", surface_id)
+#
+#                for idx, (x, y, z, *_) in enumerate(points, start=1):
+#                    point_item = QStandardItem(
+#                        f"Point {idx} (X={x:.3f}, Y={y:.3f}, Z={z:.3f})"
+#                    )
+#                    point_item.setIcon(QIcon(u":/icons/point.svg"))
+#                    surface_item.appendRow(point_item)
+#
+#                surface_root.appendRow(surface_item)
+            root_item.appendRow(surface_root)
+
     def on_clean_workspace(self):
         if self.vtkWidget:
             self.vtkWidget.RemoveAll()
@@ -317,6 +354,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         self.treeView.setModel(self.tree_model)
         self.polyline_idx = 1
         self.point_idx = 1
+        self.surface_idx = 1
         self.tableview_release()
         self.header_label = ""
         if self.file_path:
@@ -335,11 +373,13 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             QMessageBox.warning(
                 self,
                 "Invalid File",
-                "Please open a valid .xyz or .srg file before saving into the database."
+                "Please open a valid .xyz or .srg or .xyzs file before saving into the database."
             )
             return
 
-        if (not model.polylines) ^ (not model.points):
+        if ( model.polylines and (not model.points) and (not model.surfaces) ) or \
+            ( not model.polylines ) and model.points and (not model.surfaces) or \
+            ( (not model.polylines ) and (not model.points) and model.surfaces ):
             if os.path.exists(self.file_path):
                 if hasattr(QMessageBox, "Yes") or hasattr(QMessageBox, "No"):
                     reply = QMessageBox.question(
@@ -352,7 +392,10 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
                     )
                     if reply != getattr(QMessageBox, "Yes"):
                         return  # User chose not to overwrite
-        elif model.polylines and model.points:
+        elif (model.polylines and model.points) or \
+                (model.polylines and model.surfaces) or \
+                (model.points and model.surfaces) or \
+                (model.points and model.polylines and model.surfaces):
             file_dialog = QtWidgets.QFileDialog(self)
             file_dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptSave)  # Set to save mode
             file_dialog.setDefaultSuffix("db")  # Default extension if none provided
@@ -401,6 +444,19 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
                     "The point data has been successfully saved to the database.",
                     getattr(QMessageBox, "Ok")
                 )
+        if model.surfaces:
+            model.surfaces_save_database(self.file_path)
+            # Switch to the second tab of the tabWidget
+            # self.tabWidget.setCurrentIndex(1)  # Index 1 corresponds to the second tab
+            # self.tableview_setup_polylines()
+
+            if hasattr(QMessageBox, "Ok"):
+                QMessageBox.information(
+                    self,
+                    "Save Successful",
+                    "The surfaces data has been successfully saved to the database.",
+                    getattr(QMessageBox, "Ok")
+                )
 
     def on_append_file(self):
         """Handle the 'Open File' action for .xyz files."""
@@ -429,7 +485,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             home_dir = os.path.expanduser("~")
             file_dialog.setDirectory(home_dir)
 
-        file_dialog.setNameFilter("XYZ Files for Polylines (*.xyz);;CSV Files for Polylines (*.csv);;SRG Files for Points (*.srg)")
+        file_dialog.setNameFilter("XYZ Files for Polylines (*.xyz);;CSV Files for Polylines (*.csv);;SRG Files for Points (*.srg);;XYZS Files for Surfaces (*.xyzs)")
 
         if hasattr(QtWidgets.QFileDialog, "ExistingFile"):
             file_dialog.setFileMode(getattr(QtWidgets.QFileDialog,"ExistingFile"))
@@ -451,6 +507,8 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
                     self.open_srg_file(openNew=False)
                 elif self.fileType == FileType.CSV:
                     self.open_csv_file(openNew=False)
+                elif self.fileType == FileType.XYZS:
+                    self.open_xyzs_file(openNew=False)
                 else:
                     QMessageBox.warning(
                         self, "Invalid File", "Please select a valid file."
@@ -938,7 +996,9 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
     def on_tab_changed(self, index):
         """Handle tab change events."""
         if index == 0 and self.vtkWidget and self.fileType == FileType.DB:  # First tab (VTK widget)
-            self.vtkWidget.polylines_update_data()
+            model = self.vtkWidget.model
+            if model and model.polylines:
+                self.vtkWidget.polylines_update_data()
 
     def config_heatmap(self, heatmapcfg, checked=True):
         """Configuration for control ui activation"""
@@ -1064,23 +1124,70 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         self.vtkWidget.OnPointLabels(checked, self.fileType)
 
     def on_surface(self, checked):
+        """ Open a function to use surface reconstruction """
+        # Cannot perform surface reconstruction operation
+        if not self.vtkWidget.ValidSurfaces():
+            if hasattr(QMessageBox, "Ok"):
+                QMessageBox.information(
+                    self,
+                    "Surface Recontruction Dialog",
+                    "Cannot perform Surface Reconstruction Operation, it only works with valid surface data",
+                    getattr(QMessageBox, "Ok")
+                )
+            self.actionSurface.setChecked(False)
+            return
+
         model = self.vtkWidget.model
         if not model:
             return
         self.vtkWidget.surface = checked
-        self.vtkWidget.OnSurfaceReconstruction(checked, self.fileType, self.surfacecfg)
+        self.vtkWidget.OnSurfaceReconstruction(checked, self.fileType, self.surfacecfg, self.delaunaycfg)
 
     def on_wireframe(self, checked):
+        """ Open a function to use surface reconstruction """
+        # Cannot perform surface reconstruction operation
+        if not self.vtkWidget.ValidSurfaces():
+            if hasattr(QMessageBox, "Ok"):
+                QMessageBox.information(
+                    self,
+                    "Surface Recontruction Dialog",
+                    "Cannot perform Surface Reconstruction Operation, it only works with valid surface data",
+                    getattr(QMessageBox, "Ok")
+                )
+            self.actionWireframe.setChecked(False)
+            return
+
         model = self.vtkWidget.model
         if not model:
             return
         self.vtkWidget.wireframe = checked
-        self.vtkWidget.OnWireframeReconstruction(checked, self.fileType, self.surfacecfg)
+        self.vtkWidget.OnWireframeReconstruction(checked, self.fileType, self.surfacecfg, self.delaunaycfg)
 
     def on_surface_cfg(self):
-        dialog = SurfaceDialog(self, self.surfacecfg)
-        dialog.exec()
+        """ Open a function to use surface reconstruction """
+        # Cannot perform surface reconstruction operation
+#        if not self.vtkWidget.ValidSurfaces():
+#            if hasattr(QMessageBox, "Ok"):
+#                QMessageBox.information(
+#                    self,
+#                    "Surface Recontruction Dialog",
+#                    "Cannot perform Surface Reconstruction Operation, it only works with valid surface data",
+#                    getattr(QMessageBox, "Ok")
+#                )
+#            return
 
+#        if self.vtkWidget:
+#            model = self.vtkWidget.model
+#            if not model:
+#                return
+#            # Switch to the first tab of the tabWidget
+#            self.tabWidget.setCurrentIndex(0)  # Index 0 corresponds to the first tab
+        #dialog = SurfaceDialog(self, self.surfacecfg, self.delaunaycfg)
+        dialog = SurfaceDialog(self)
+        result = dialog.exec()
+        if hasattr(QDialog, "Accepted") and result == getattr(QDialog,"Accepted"):
+            self.surfacecfg = dialog.surfacecfg
+            self.delaunaycfg = dialog.delaunaycfg
 
 def main():
     app = QtWidgets.QApplication(sys.argv)

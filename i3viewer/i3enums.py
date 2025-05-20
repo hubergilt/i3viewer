@@ -112,6 +112,14 @@ class DelaunayCfg:
             "projection_plane_mode": (0, 3),
         }
 
+    def config_default(self):
+        self.cleaner_tolerance=0.001
+        self.delaunay_alpha=0.0
+        self.delaunay_tolerance=0.001
+        self.delaunay_offset=5.0
+        self.feature_angle=60.0
+        self.projection_plane_mode=0
+
     def config_high_resolution(self):
         self.cleaner_tolerance = 0.0001
         self.delaunay_alpha = 0.0
@@ -128,7 +136,7 @@ class DelaunayCfg:
         self.feature_angle = 60.0
         self.projection_plane_mode = 0
 
-    def config_noise_data(self):
+    def config_noisy_data(self):
         self.cleaner_tolerance = 0.01
         self.delaunay_alpha = 2.0
         self.delaunay_tolerance = 0.01
@@ -143,6 +151,17 @@ class DelaunayCfg:
         self.delaunay_offset = 5.0
         self.feature_angle = 30.0
         self.projection_plane_mode = 0
+
+    def __repr__(self):
+        return (
+            f"DelaunayCfg("
+            f"cleaner_tolerance={self.cleaner_tolerance}, "
+            f"delaunay_alpha={self.delaunay_alpha}, "
+            f"delaunay_tolerance={self.delaunay_tolerance}, "
+            f"delaunay_offset={self.delaunay_offset}, "
+            f"feature_angle={self.feature_angle}, "
+            f"projection_plane_mode={self.projection_plane_mode})"
+        )
 
 
 class SurfaceCfg:
@@ -191,3 +210,71 @@ class SurfaceCfg:
             "surface_opacity": (0.0, 1.0),
             "edge_thickness": (1, 10),
         }
+
+    def config_default(self):
+        self.surface_color = (0.8, 0.8, 1.0)
+        self.wireframe_color = (0.0, 0.0, 0.0)
+        self.surface_opacity = 1.0
+        self.edge_thickness = 1.0
+
+    def config_terrain(self):
+        self.surface_color = (0.5, 0.7, 0.5)
+        self.wireframe_color = (0.2, 0.2, 0.2)
+        self.surface_opacity = 1.0
+        self.edge_thickness = 0.7
+
+    def config_wireframe(self):
+        self.surface_color = (0.3, 0.3, 0.3)
+        self.wireframe_color = (0.0, 0.0, 0.0)
+        self.surface_opacity = 0.1
+        self.edge_thickness = 1.5
+
+    def config_transparent(self):
+        self.surface_color = (0.8, 0.9, 1.0)
+        self.wireframe_color = (0.4, 0.4, 0.6)
+        self.surface_opacity = 0.7
+        self.edge_thickness = 1.0
+
+    def config_presentation(self):
+        self.surface_color = (0.7, 0.8, 1.0)
+        self.wireframe_color = (0.2, 0.2, 0.4)
+        self.surface_opacity = 1.0
+        self.edge_thickness = 1.0
+
+    def __repr__(self):
+        return (
+            f"SurfaceCfg("
+            f"surface_color={self.surface_color}, "
+            f"wireframe_color={self.wireframe_color}, "
+            f"surface_opacity={self.surface_opacity}, "
+            f"edge_thickness={self.edge_thickness})"
+        )
+
+
+class SurfaceProfile(Enum):
+    """Represents the possible types for Surface profiles"""
+
+    DEFAULT = 0
+    TERRAIN = 1
+    WIREFRAME = 2
+    TRANSPARENT = 3
+    PRESENTATION = 4
+
+
+class DelaunayProfile(Enum):
+    """Represents the possible types for Delaunay profiles"""
+
+    DEFAULT = 0
+    HIGH_RESOLUTION = 1
+    TYPICAL_GIS = 2
+    NOISY_DATA = 3
+    CONTOUR_PRESERVING = 4
+
+
+class ProjectionPlane(Enum):
+    """Represents the possible types for projection plane"""
+
+    BEST_FIT = 0
+    XY_PLANE = 1
+    YZ_PLANE = 2
+    XZ_PLANE = 3

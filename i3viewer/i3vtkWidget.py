@@ -60,6 +60,9 @@ class i3vtkWidget(QWidget):
             if self.model.hasPolylinesTable():
                 actors = self.model.polylines_format_actors(fileType)
                 self.actors.extend(actors)
+            if self.model.hasSurfacesTable():
+                actors = self.model.surfaces_format_actors(fileType)
+                self.actors.extend(actors)
         elif fileType == FileType.XYZ or fileType == FileType.CSV:
             actors = self.model.polylines_format_actors(fileType)
             self.actors.extend(actors)
@@ -110,6 +113,7 @@ class i3vtkWidget(QWidget):
         if self.model:
             self.model.polylines = {}
             self.model.points = {}
+            self.model.surfaces = {}
 
     def calculate_polyline_length(self, polyline):
         """Calculates the total length of a polyline."""
@@ -368,8 +372,8 @@ class i3vtkWidget(QWidget):
         self.camera.ParallelProjectionOn()
 
     def AddActor(self, pvtkActor):
-        if self.ShowEdges:
-            pvtkActor.GetProperty().EdgeVisibilityOn()
+        #if self.ShowEdges:
+        #    pvtkActor.GetProperty().EdgeVisibilityOn()
 
         if self.renderer is None:
             raise RuntimeError("self.interactor could not be created.")
@@ -596,12 +600,18 @@ class i3vtkWidget(QWidget):
         for _, label in self.model.pointlabels.items():
             self.RemoveActor(label)
 
-    def OnSurfaceReconstruction(self, enable, fileType, surfacecfg):
+    def ValidSurfaces(self):
+        if self.model and self.model.surfaces:
+            return True
+        else:
+            return False
+
+    def OnSurfaceReconstruction(self, enable, fileType, surfacecfg, delaunaycfg):
         if not self.model:
             return
         if self.model and self.model.surfaces:
             if enable:
-                self.reconstruction_surface_actor(fileType)
+                self.reconstruction_surface_actor(fileType, delaunaycfg)
                 self.AddActor(self.surfaceActor)
             else:
                 if not self.wireframe:
@@ -609,12 +619,12 @@ class i3vtkWidget(QWidget):
             self.configSurface(surfacecfg)
             self.UpdateView(False)
 
-    def OnWireframeReconstruction(self, enable, fileType, surfacecfg):
+    def OnWireframeReconstruction(self, enable, fileType, surfacecfg, delaunaycfg):
         if not self.model:
             return
         if self.model and self.model.surfaces:
             if enable:
-                self.reconstruction_surface_actor(fileType)
+                self.reconstruction_surface_actor(fileType, delaunaycfg)
                 self.AddActor(self.surfaceActor)
             else:
                 if not self.surface:
@@ -622,24 +632,41 @@ class i3vtkWidget(QWidget):
             self.configSurface(surfacecfg)
             self.UpdateView(False)
 
-    def reconstruction_surface_actor(self, fileType):
+    def reconstruction_surface_actor(self, fileType, delaunaycfg):
         if not self.model:
             return
         if self.surfaceActor:
             self.RemoveActor(self.surfaceActor)
+
         # Create a vtkAppendPolyData to combine all contour lines
         append_contours = vtk.vtkAppendPolyData()
+
+        # Track if we have any valid surfaces to process
+        valid_surfaces_found = False
+
         # Create contours at different surface elevations
         for surface_id, _ in self.model.surfaces.items():
             actor = self.surfaces_get_actor(surface_id)
             if actor:
                 mapper = actor.GetMapper()
-                polyData = mapper.GetInput()
-                if fileType == FileType.XYZS or fileType == FileType.DB:
-                    append_contours.AddInputData(polyData)
-        append_contours.Update()
-        contour_polydata = append_contours.GetOutput()
-        self.surfaceActor = self.model.surface_reconstruction_actor(contour_polydata)
+                if mapper:
+                    polyData = mapper.GetInput()
+                    if polyData and polyData.GetNumberOfPoints() > 0:
+                        if fileType == FileType.XYZS or fileType == FileType.DB:
+                            append_contours.AddInputData(polyData)
+                            valid_surfaces_found = True
+
+        # Only proceed if we found valid surfaces to process
+        if valid_surfaces_found:
+            append_contours.Update()
+            contour_polydata = append_contours.GetOutput()
+            self.surfaceActor = self.model.surface_reconstruction_actor(contour_polydata, delaunaycfg)
+            if self.surfaceActor:
+                self.AddActor(self.surfaceActor)
+        else:
+            print("No valid surfaces found for reconstruction")
+
+
 
     def configSurface(self, surfacecfg):
         surface_color = surfacecfg.surface_color

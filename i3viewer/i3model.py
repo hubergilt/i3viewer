@@ -144,6 +144,27 @@ class i3model:
             polylines[polyline_id].append((x, y, z, g, *rest))
         return polylines
 
+    def surfaces_read_table(self):
+        """Fetch surfaces grouped by surface_id from the SQLite database."""
+        conn = sqlite3.connect(self.file_path)
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            SELECT surface_id, X, Y, Z
+                FROM surfaces ORDER BY surface_id, point_id
+            """)
+        data = cursor.fetchall()
+
+        conn.close()
+
+        surfaces = {}
+        for surface_id, x, y, z in data:
+            if surface_id not in surfaces:
+                surfaces[surface_id] = []
+            surfaces[surface_id].append((x, y, z))
+        return surfaces
+
     def polylines_create_actors(self):
         """Creates separate VTK actors for each polyline in self.polylines."""
         self.actors = []
@@ -195,6 +216,39 @@ class i3model:
         setattr(actor, "polyline_id", polyline_id)
         setattr(actor, "color", color)
         return actor
+
+    def surfaces_save_database(self, db_path):
+        """Saves the polylines data into the SQLite database."""
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS surfaces (
+                surface_id INTEGER NOT NULL,
+                point_id INTEGER NOT NULL,
+                X REAL,
+                Y REAL,
+                Z REAL,
+                PRIMARY KEY (surface_id, point_id)
+            )
+        """
+        )
+
+        # Clear table before inserting new data
+        cursor.execute("DELETE FROM surfaces")
+
+        for surface_id, points in self.surfaces.items():
+            point_id = 1
+            for x, y, z in points:
+                cursor.execute(
+                    "INSERT INTO surfaces (surface_id, point_id, X, Y, Z) VALUES (?, ?, ?, ?, ?)",
+                    (surface_id, point_id, x, y, z),
+                )
+                point_id += 1
+
+        conn.commit()
+        conn.close()
 
     def polylines_save_database(self, db_path):
         """Saves the polylines data into the SQLite database."""
@@ -443,6 +497,8 @@ class i3model:
         surfaces = None
         if fileType == FileType.XYZS:
             surfaces = self.surfaces_read_xyzs_file()
+        elif fileType == FileType.DB:
+            surfaces = self.surfaces_read_table()
         else:
             return []
 
@@ -534,6 +590,9 @@ class i3model:
 
     def hasPointsTable(self):
         return self.table_exists("points")
+
+    def hasSurfacesTable(self):
+        return self.table_exists("surfaces")
 
     def hasRoutesTable(self):
         return self.table_exists("routes")
@@ -842,7 +901,7 @@ class i3model:
 
         return label
 
-    def surface_reconstruction_actor(self, contour_polydata):
+    def surface_reconstruction_actor(self, contour_polydata, delaunaycfg):
         """
         Creates a surface mesh from contour lines using Delaunay triangulation.
 
@@ -855,7 +914,7 @@ class i3model:
         # Step 1: Clean the input data to remove duplicates and ensure consistency
         cleaner = vtk.vtkCleanPolyData()
         cleaner.SetInputData(contour_polydata)
-        cleaner.SetTolerance(0.001)  # Points within this distance are merged
+        cleaner.SetTolerance(delaunaycfg.cleaner_tolerance)  # Points within this distance are merged
         cleaner.Update()
 
         clean_polydata = cleaner.GetOutput()
@@ -865,16 +924,16 @@ class i3model:
         delaunay.SetInputData(clean_polydata)
 
         # Critical parameters:
-        delaunay.SetAlpha(0.0)  # 0.0 gives standard Delaunay, higher values create a more constrained triangulation
-        delaunay.SetTolerance(0.001)  # Controls point merging during triangulation
-        delaunay.SetOffset(5.0)  # Controls bounding triangle size for non-convex inputs
+        delaunay.SetAlpha(delaunaycfg.delaunay_alpha)  # 0.0 gives standard Delaunay, higher values create a more constrained triangulation
+        delaunay.SetTolerance(delaunaycfg.delaunay_tolerance)  # Controls point merging during triangulation
+        delaunay.SetOffset(delaunaycfg.delaunay_offset)  # Controls bounding triangle size for non-convex inputs
 
         # Projection plane settings:
         # 0 = best fitting plane
         # 1 = XY plane
         # 2 = YZ plane
         # 3 = XZ plane
-        delaunay.SetProjectionPlaneMode(0)
+        delaunay.SetProjectionPlaneMode(delaunaycfg.projection_plane_mode)
 
         delaunay.Update()
 
@@ -886,7 +945,7 @@ class i3model:
         # Step 4: Compute normals for proper shading
         normals = vtk.vtkPolyDataNormals()
         normals.SetInputData(mesh)
-        normals.SetFeatureAngle(60.0)  # Angle to separate smooth regions
+        normals.SetFeatureAngle(delaunaycfg.feature_angle)  # Angle to separate smooth regions
         normals.ComputePointNormalsOn()
         normals.ComputeCellNormalsOn()
         normals.ConsistencyOn()

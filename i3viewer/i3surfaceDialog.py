@@ -49,15 +49,40 @@ class Ui_Dialog(object):
         self.groupBox.setObjectName(u"groupBox")
         self.verticalLayout_12 = QVBoxLayout(self.groupBox)
         self.verticalLayout_12.setObjectName(u"verticalLayout_12")
+        self.frame_22 = QFrame(self.groupBox)
+        self.frame_22.setObjectName(u"frame_22")
+        self.horizontalLayout_19 = QHBoxLayout(self.frame_22)
+        self.horizontalLayout_19.setObjectName(u"horizontalLayout_19")
+        self.radioButtonProfile = QRadioButton(self.frame_22)
+        self.buttonGroup = QButtonGroup(Dialog)
+        self.buttonGroup.setObjectName(u"buttonGroup")
+        self.buttonGroup.addButton(self.radioButtonProfile)
+        self.radioButtonProfile.setObjectName(u"radioButtonProfile")
+
+        self.horizontalLayout_19.addWidget(self.radioButtonProfile)
+
+        self.comboBoxSProfile = QComboBox(self.frame_22)
+        self.comboBoxSProfile.addItem("")
+        self.comboBoxSProfile.addItem("")
+        self.comboBoxSProfile.addItem("")
+        self.comboBoxSProfile.addItem("")
+        self.comboBoxSProfile.addItem("")
+        self.comboBoxSProfile.setObjectName(u"comboBoxSProfile")
+        self.comboBoxSProfile.setEnabled(False)
+
+        self.horizontalLayout_19.addWidget(self.comboBoxSProfile)
+
+
+        self.verticalLayout_12.addWidget(self.frame_22)
+
         self.frame = QFrame(self.groupBox)
         self.frame.setObjectName(u"frame")
         self.horizontalLayout_20 = QHBoxLayout(self.frame)
         self.horizontalLayout_20.setObjectName(u"horizontalLayout_20")
         self.radioButtonRandom = QRadioButton(self.frame)
-        self.buttonGroup = QButtonGroup(Dialog)
-        self.buttonGroup.setObjectName(u"buttonGroup")
         self.buttonGroup.addButton(self.radioButtonRandom)
         self.radioButtonRandom.setObjectName(u"radioButtonRandom")
+        self.radioButtonRandom.setChecked(True)
 
         self.horizontalLayout_20.addWidget(self.radioButtonRandom)
 
@@ -82,6 +107,7 @@ class Ui_Dialog(object):
 
         self.pushButtonSurface = QPushButton(self.frame)
         self.pushButtonSurface.setObjectName(u"pushButtonSurface")
+        self.pushButtonSurface.setEnabled(False)
 
         self.horizontalLayout_20.addWidget(self.pushButtonSurface)
 
@@ -119,6 +145,7 @@ class Ui_Dialog(object):
 
         self.pushButtonWireframe = QPushButton(self.frame_11)
         self.pushButtonWireframe.setObjectName(u"pushButtonWireframe")
+        self.pushButtonWireframe.setEnabled(False)
 
         self.horizontalLayout_11.addWidget(self.pushButtonWireframe)
 
@@ -206,16 +233,6 @@ class Ui_Dialog(object):
 
         self.verticalLayout_10.addWidget(self.frame_15)
 
-        self.label_3 = QLabel(self.tab_3)
-        self.label_3.setObjectName(u"label_3")
-
-        self.verticalLayout_10.addWidget(self.label_3)
-
-        self.label_4 = QLabel(self.tab_3)
-        self.label_4.setObjectName(u"label_4")
-
-        self.verticalLayout_10.addWidget(self.label_4)
-
         self.label_2 = QLabel(self.tab_3)
         self.label_2.setObjectName(u"label_2")
 
@@ -244,15 +261,15 @@ class Ui_Dialog(object):
 
         self.horizontalLayout_13.addWidget(self.label_38)
 
-        self.comboBoxProfile = QComboBox(self.frame_13)
-        self.comboBoxProfile.addItem("")
-        self.comboBoxProfile.addItem("")
-        self.comboBoxProfile.addItem("")
-        self.comboBoxProfile.addItem("")
-        self.comboBoxProfile.addItem("")
-        self.comboBoxProfile.setObjectName(u"comboBoxProfile")
+        self.comboBoxDProfile = QComboBox(self.frame_13)
+        self.comboBoxDProfile.addItem("")
+        self.comboBoxDProfile.addItem("")
+        self.comboBoxDProfile.addItem("")
+        self.comboBoxDProfile.addItem("")
+        self.comboBoxDProfile.addItem("")
+        self.comboBoxDProfile.setObjectName(u"comboBoxDProfile")
 
-        self.horizontalLayout_13.addWidget(self.comboBoxProfile)
+        self.horizontalLayout_13.addWidget(self.comboBoxDProfile)
 
 
         self.verticalLayout_14.addLayout(self.horizontalLayout_13)
@@ -501,15 +518,17 @@ class Ui_Dialog(object):
 
         self.verticalLayout_14.addWidget(self.frame_9)
 
-
-        self.verticalLayout_11.addWidget(self.frame_13)
-
-        self.frame_14 = QFrame(self.tab_4)
+        self.frame_14 = QFrame(self.frame_13)
         self.frame_14.setObjectName(u"frame_14")
         self.frame_14.setFrameShape(QFrame.StyledPanel)
         self.frame_14.setFrameShadow(QFrame.Raised)
         self.horizontalLayout_18 = QHBoxLayout(self.frame_14)
         self.horizontalLayout_18.setObjectName(u"horizontalLayout_18")
+        self.label_37 = QLabel(self.frame_14)
+        self.label_37.setObjectName(u"label_37")
+
+        self.horizontalLayout_18.addWidget(self.label_37)
+
         self.comboBoxPlane = QComboBox(self.frame_14)
         self.comboBoxPlane.addItem("")
         self.comboBoxPlane.addItem("")
@@ -519,13 +538,11 @@ class Ui_Dialog(object):
 
         self.horizontalLayout_18.addWidget(self.comboBoxPlane)
 
-        self.label_37 = QLabel(self.frame_14)
-        self.label_37.setObjectName(u"label_37")
 
-        self.horizontalLayout_18.addWidget(self.label_37)
+        self.verticalLayout_14.addWidget(self.frame_14)
 
 
-        self.verticalLayout_11.addWidget(self.frame_14)
+        self.verticalLayout_11.addWidget(self.frame_13)
 
         self.tabWidget.addTab(self.tab_4, "")
 
@@ -533,15 +550,15 @@ class Ui_Dialog(object):
 
         self.horizontalLayout_3 = QHBoxLayout()
         self.horizontalLayout_3.setObjectName(u"horizontalLayout_3")
-        self.pushButton_4 = QPushButton(Dialog)
-        self.pushButton_4.setObjectName(u"pushButton_4")
+        self.pushButtonAccept = QPushButton(Dialog)
+        self.pushButtonAccept.setObjectName(u"pushButtonAccept")
 
-        self.horizontalLayout_3.addWidget(self.pushButton_4)
+        self.horizontalLayout_3.addWidget(self.pushButtonAccept)
 
-        self.pushButton_3 = QPushButton(Dialog)
-        self.pushButton_3.setObjectName(u"pushButton_3")
+        self.pushButtonReject = QPushButton(Dialog)
+        self.pushButtonReject.setObjectName(u"pushButtonReject")
 
-        self.horizontalLayout_3.addWidget(self.pushButton_3)
+        self.horizontalLayout_3.addWidget(self.pushButtonReject)
 
 
         self.verticalLayout_2.addLayout(self.horizontalLayout_3)
@@ -559,6 +576,13 @@ class Ui_Dialog(object):
         Dialog.setWindowTitle(QCoreApplication.translate("Dialog", u"Dialog", None))
         self.label.setText(QCoreApplication.translate("Dialog", u"<html><head/><body><p><span style=\" font-weight:600;\">Configure Appearance Surface Parameters:</span></p></body></html>", None))
         self.groupBox.setTitle(QCoreApplication.translate("Dialog", u"Surface and Wireframe Colors:", None))
+        self.radioButtonProfile.setText(QCoreApplication.translate("Dialog", u"Profile", None))
+        self.comboBoxSProfile.setItemText(0, QCoreApplication.translate("Dialog", u"Default", None))
+        self.comboBoxSProfile.setItemText(1, QCoreApplication.translate("Dialog", u"Terrain", None))
+        self.comboBoxSProfile.setItemText(2, QCoreApplication.translate("Dialog", u"Wireframe", None))
+        self.comboBoxSProfile.setItemText(3, QCoreApplication.translate("Dialog", u"Transparent", None))
+        self.comboBoxSProfile.setItemText(4, QCoreApplication.translate("Dialog", u"Presentation", None))
+
         self.radioButtonRandom.setText(QCoreApplication.translate("Dialog", u"Random", None))
         self.labelSurface.setText(QCoreApplication.translate("Dialog", u"TextLabel", None))
         self.pushButtonSurface.setText(QCoreApplication.translate("Dialog", u"Suraface Color...    ", None))
@@ -573,17 +597,15 @@ class Ui_Dialog(object):
         self.labelThicknessMin.setText(QCoreApplication.translate("Dialog", u"min:0", None))
         self.labelThicknessValue.setText(QCoreApplication.translate("Dialog", u"value:50", None))
         self.labelThicknessMax.setText(QCoreApplication.translate("Dialog", u"max:100", None))
-        self.label_3.setText("")
-        self.label_4.setText("")
         self.label_2.setText("")
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.tab_3), QCoreApplication.translate("Dialog", u"Surface Appearance", None))
         self.label_12.setText(QCoreApplication.translate("Dialog", u"<html><head/><body><p><span style=\" font-weight:600;\">Configure Delaunay Surface Reconstruction Parameters:</span></p></body></html>", None))
         self.label_38.setText(QCoreApplication.translate("Dialog", u"Profiles:", None))
-        self.comboBoxProfile.setItemText(0, QCoreApplication.translate("Dialog", u"High Resolution", None))
-        self.comboBoxProfile.setItemText(1, QCoreApplication.translate("Dialog", u"Typical Gis", None))
-        self.comboBoxProfile.setItemText(2, QCoreApplication.translate("Dialog", u"Noisy Data", None))
-        self.comboBoxProfile.setItemText(3, QCoreApplication.translate("Dialog", u"Contour Preserving", None))
-        self.comboBoxProfile.setItemText(4, QCoreApplication.translate("Dialog", u"Custom", None))
+        self.comboBoxDProfile.setItemText(0, QCoreApplication.translate("Dialog", u"Default", None))
+        self.comboBoxDProfile.setItemText(1, QCoreApplication.translate("Dialog", u"High Resolution", None))
+        self.comboBoxDProfile.setItemText(2, QCoreApplication.translate("Dialog", u"Typical Gis", None))
+        self.comboBoxDProfile.setItemText(3, QCoreApplication.translate("Dialog", u"Noisy Data", None))
+        self.comboBoxDProfile.setItemText(4, QCoreApplication.translate("Dialog", u"Contour Preserving", None))
 
         self.label_13.setText(QCoreApplication.translate("Dialog", u"Cleaner Tolerance:      ", None))
         self.labelCToleranceMin.setText(QCoreApplication.translate("Dialog", u"min:0", None))
@@ -605,14 +627,14 @@ class Ui_Dialog(object):
         self.labelFAngleMin.setText(QCoreApplication.translate("Dialog", u"min:0", None))
         self.labelFAngleValue.setText(QCoreApplication.translate("Dialog", u"value:50", None))
         self.labelFAngleMax.setText(QCoreApplication.translate("Dialog", u"max:100", None))
+        self.label_37.setText(QCoreApplication.translate("Dialog", u"Projection Plane Mode:", None))
         self.comboBoxPlane.setItemText(0, QCoreApplication.translate("Dialog", u"Best Fitting Plane", None))
         self.comboBoxPlane.setItemText(1, QCoreApplication.translate("Dialog", u"XY Plane", None))
         self.comboBoxPlane.setItemText(2, QCoreApplication.translate("Dialog", u"YZ Plane", None))
         self.comboBoxPlane.setItemText(3, QCoreApplication.translate("Dialog", u"XZ Plane", None))
 
-        self.label_37.setText(QCoreApplication.translate("Dialog", u"Projection Plane Mode:", None))
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.tab_4), QCoreApplication.translate("Dialog", u"Surface Reconstruction", None))
-        self.pushButton_4.setText(QCoreApplication.translate("Dialog", u"Accept", None))
-        self.pushButton_3.setText(QCoreApplication.translate("Dialog", u"Cancel", None))
+        self.pushButtonAccept.setText(QCoreApplication.translate("Dialog", u"Accept", None))
+        self.pushButtonReject.setText(QCoreApplication.translate("Dialog", u"Cancel", None))
     # retranslateUi
 
