@@ -3,7 +3,7 @@ import vtkmodules.qt.QVTKRenderWindowInteractor as QVTK
 from PySide6.QtWidgets import QHBoxLayout, QWidget
 from vtk import vtkActor
 
-from i3viewer.i3enums import FileType
+from i3viewer.i3enums import FileType, Params
 from i3viewer.i3model import i3model
 from i3viewer.i3point import NonModalDialog as PointDialog
 from i3viewer.i3polyline import NonModalDialog as PolylineDialog
@@ -47,7 +47,7 @@ class i3vtkWidget(QWidget):
 
         actors = []
         if newFile:
-            self.RemoveAll()
+            self.RemoveAllActors()
             self.actors = []
             self.model.polyline_id = 1
             self.model.point_id = 1
@@ -66,9 +66,11 @@ class i3vtkWidget(QWidget):
         elif fileType == FileType.XYZ or fileType == FileType.CSV:
             actors = self.model.polylines_format_actors(fileType)
             self.actors.extend(actors)
+            self.polylabels_create_actors(fileType)
         elif fileType == FileType.SRG:
             actors = self.model.points_format_actors(fileType)
             self.actors.extend(actors)
+            self.pointlabels_create_actors(fileType)
         elif fileType == FileType.XYZS:
             actors = self.model.surfaces_format_actors(fileType)
             self.actors.extend(actors)
@@ -104,16 +106,14 @@ class i3vtkWidget(QWidget):
                 return actor
         return None
 
-    def RemoveAll(self):
+    def RemoveAllActors(self):
         if self.actors:
             for actor in self.actors:
                 self.RemoveActor(actor)
             self.actors = []
         self.UpdateView()
         if self.model:
-            self.model.polylines = {}
-            self.model.points = {}
-            self.model.surfaces = {}
+            self.model.RemoveAllActors()
 
     def calculate_polyline_length(self, polyline):
         """Calculates the total length of a polyline."""
@@ -163,12 +163,12 @@ class i3vtkWidget(QWidget):
 
         if hasattr(actor, 'polyline_id') and actor.polyline_id in self.model.polylines:
             # Handle polyline selection
-            actor.GetProperty().SetColor(1, 1, 0)  # Yellow color
-            actor.GetProperty().SetLineWidth(5.0)
+            actor.GetProperty().SetColor(Params.SelectedColor.value)  # Yellow color
+            actor.GetProperty().SetLineWidth(Params.PolylineSelectedWidth.value)
         elif hasattr(actor, 'point_id') and actor.point_id in self.model.points:
             # Handle point selection
-            actor.GetProperty().SetColor(1, 1, 0)  # Yellow color
-            actor = self.model.point_select(actor, 30)
+            actor.GetProperty().SetColor(Params.SelectedColor.value)  # Yellow color
+            actor = self.model.point_select(actor, Params.PointWinSelectedRadius.value)
         else:
             return  # Ignore invalid actors
 
@@ -184,18 +184,20 @@ class i3vtkWidget(QWidget):
             # Handle polyline deselection
             if self.heatmap:
                 rainbow_color = getattr(actor, "rainbow_color")
+                rainbow_width = getattr(actor, "rainbow_width")
                 color = rainbow_color
+                width = rainbow_width
             else:
                 original_color = getattr(actor, "color")
                 color = original_color
+                width = Params.PolylineDefaultWidth.value
             actor.GetProperty().SetColor(color)
-            actor.GetProperty().SetLineWidth(2.0)
+            actor.GetProperty().SetLineWidth(width)
         elif hasattr(actor, "point_id") and hasattr(actor, "color"):
             # Handle point deselection
             original_color = getattr(actor, "color")
             actor.GetProperty().SetColor(original_color)
-            actor.GetProperty().SetColor(original_color)
-            self.model.point_select(actor, 20)
+            self.model.point_select(actor, Params.PointWinRadius.value)
         else:
             return  # Ignore invalid actors
 
@@ -492,7 +494,10 @@ class i3vtkWidget(QWidget):
     def OnHeatMap(self, enable):
         if self.model and self.model.polylines:
             self.heatmap = enable
-            tonelajes = [polyline[0][5] if polyline[0][5] is not None else 0 for polyline in self.model.polylines.values()]
+            tonelajes = [polyline[0][5] \
+                if polyline[0][5] is not None \
+                else 0 \
+                for polyline in self.model.polylines.values()]
             min_tonelaje = min(tonelajes)
             max_tonelaje = max(tonelajes)
             for polyline_id, polyline in self.model.polylines.items():
@@ -503,35 +508,76 @@ class i3vtkWidget(QWidget):
                 if enable:
                     color = self.rainbow_color(tonelaje, min_tonelaje, max_tonelaje)
                     setattr(actor, "rainbow_color", color)
+                    width = self.rainbow_width(tonelaje, min_tonelaje, max_tonelaje)
+                    setattr(actor, "rainbow_width", width)
                 else:
                     color = getattr(actor, "color")
+                    width = Params.PolylineDefaultWidth.value
 
                 if hasattr(actor, "GetProperty"):
-                    getattr(actor, "GetProperty")().SetColor(color)
+                    property = getattr(actor, 'GetProperty')()
+                    property.SetColor(color)
+                    property.SetLineWidth(width)
+
             if self.polylabel:
                 self.CleanPolylabels()
                 self.OnPolylabels(self.polylabel, FileType.DB)
             else:
                 self.UpdateView(False)
 
-    def rainbow_color(self, value, min_val=0, max_val=100):
+    def rainbow_color(self, tonne, min_tonne=0, max_tonne=100):
         """Convert a value to a color using the VTK rainbow colormap."""
         # Create rainbow colormap
         lut = vtk.vtkLookupTable()
         lut.SetHueRange(0.667, 0.0)  # Blue to red
         lut.SetSaturationRange(1.0, 1.0)
         lut.SetValueRange(1.0, 1.0)
-        lut.SetTableRange(min_val, max_val)
+        lut.SetTableRange(min_tonne, max_tonne)
         lut.Build()
 
         # Get color for value
         rgb = [0.0, 0.0, 0.0]
-        lut.GetColor(value, rgb)
+        lut.GetColor(tonne, rgb)
 
         # Convert to integers in range 0-255
         rgb_int = tuple(int(255 * c) for c in rgb)
 
         return rgb_int
+
+    def rainbow_width(self, tonne, min_tonne, max_tonne):
+        """
+        Calculates the proportional width of a polyline based on current tonne value.
+
+        Args:
+            tonne (float): The current tonne value for which to calculate the width.
+            min_tonne (float): The minimum tonne value in the data range.
+            max_tonne (float): The maximum tonne value in the data range.
+
+        Returns:
+            float: The calculated polyline width, clamped between min_width and max_width.
+                  Returns min_width if current_tonne is less than or equal to min_tonne.
+                  Returns max_width if current_tonne is greater than or equal to max_tonne.
+        """
+
+        min_width = Params.PolylineMinWidth.value
+        max_width = Params.PolylineMaxWidth.value
+
+        if min_tonne == max_tonne:
+            # Avoid division by zero if the tonne range is a single point
+            return (min_width + max_width) / 2
+
+        # Clamp current_tonne to the valid range to ensure width stays within min/max_width
+        clamped_tonne = max(min_tonne, min(max_tonne, tonne))
+
+        # Perform linear interpolation
+        # normalized_tonne = (clamped_tonne - min_tonne) / (max_tonne - min_tonne)
+        # polyline_width = min_width + (max_width - min_width) * normalized_tonne
+
+        # Simplified linear interpolation:
+        polyline_width = min_width + (clamped_tonne - min_tonne) * \
+                         (max_width - min_width) / (max_tonne - min_tonne)
+
+        return polyline_width
 
     def OnPolylabels(self, enable, fileType):
         if not self.model:
@@ -547,17 +593,23 @@ class i3vtkWidget(QWidget):
 
     def polylabels_create_actors(self, fileType):
         if self.model and self.model.polylines:
-            self.model.polylabels = {}
-            self.model.polylabel_id = 1
+
+            if fileType == FileType.DB:
+                self.model.polylabels = {}
+                self.model.polylabel_id = 1
+
             for polyline_id, polyline in self.model.polylines.items():
                 actor = self.polylines_get_actor(polyline_id)
                 label = ""
-                if fileType == FileType.DB:
+                if fileType == FileType.DB and self.heatmap:
                     route = polyline[0][4] if polyline[0][4] is not None else str(polyline_id)
                     tonelaje = polyline[0][5] if polyline[0][5] is not None else 0
                     label = f"{route}={tonelaje/1000000:,.1f}Mt"
+                if fileType == FileType.DB and not self.heatmap:
+                    route = polyline[0][4] if polyline[0][4] is not None else str(polyline_id)
+                    label = f"{route}"
                 elif fileType == FileType.XYZ or fileType == FileType.CSV:
-                    label = str(polyline_id)
+                    label = f"{polyline_id}"
                 label_actor = self.model.polylabels_create_actor(actor, label)
                 self.model.polylabels[self.model.polylabel_id] = label_actor # Add to dictionary with current label actor
                 self.model.polylabel_id += 1  # Increment for next label
@@ -582,8 +634,11 @@ class i3vtkWidget(QWidget):
 
     def pointlabels_create_actors(self, fileType):
         if self.model and self.model.points:
-            self.model.pointlabels = {}
-            self.model.pointlabel_id = 1
+
+            if fileType == FileType.DB:
+                self.model.pointlabels = {}
+                self.model.pointlabel_id = 1
+
             for point_id, point in self.model.points.items():
                 actor = self.points_get_actor(point_id)
                 label = ""
@@ -606,29 +661,37 @@ class i3vtkWidget(QWidget):
         else:
             return False
 
+    def AddSurfaceActor(self):
+        if self.surfaceActor:
+            self.AddActor(self.surfaceActor)
+
+    def RemoveSurfaceActor(self):
+        if self.surfaceActor:
+            self.RemoveActor(self.surfaceActor)
+
     def OnSurfaceReconstruction(self, enable, fileType, surfacecfg, delaunaycfg):
         if not self.model:
             return
-        if self.model and self.model.surfaces:
+        if self.ValidSurfaces():
             if enable:
                 self.reconstruction_surface_actor(fileType, delaunaycfg)
-                self.AddActor(self.surfaceActor)
+                self.AddSurfaceActor()
             else:
                 if not self.wireframe:
-                    self.RemoveActor(self.surfaceActor)
+                    self.RemoveSurfaceActor()
             self.configSurface(surfacecfg)
             self.UpdateView(False)
 
     def OnWireframeReconstruction(self, enable, fileType, surfacecfg, delaunaycfg):
         if not self.model:
             return
-        if self.model and self.model.surfaces:
+        if self.ValidSurfaces():
             if enable:
                 self.reconstruction_surface_actor(fileType, delaunaycfg)
-                self.AddActor(self.surfaceActor)
+                self.AddSurfaceActor()
             else:
                 if not self.surface:
-                    self.RemoveActor(self.surfaceActor)
+                    self.RemoveSurfaceActor()
             self.configSurface(surfacecfg)
             self.UpdateView(False)
 
@@ -665,7 +728,6 @@ class i3vtkWidget(QWidget):
                 self.AddActor(self.surfaceActor)
         else:
             print("No valid surfaces found for reconstruction")
-
 
 
     def configSurface(self, surfacecfg):

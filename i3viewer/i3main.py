@@ -344,11 +344,14 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
 
     def on_clean_workspace(self):
         if self.vtkWidget:
-            self.vtkWidget.RemoveAll()
             self.actionPolyLabel.setChecked(False)
             self.actionPointLabel.setChecked(False)
             self.vtkWidget.CleanPolylabels()
             self.vtkWidget.CleanPointlabels()
+            self.vtkWidget.RemoveSurfaceActor()
+            self.vtkWidget.RemoveAllActors()
+            self.actionSurface.setChecked(False)
+            self.actionWireframe.setChecked(False)
             self.vtkWidget.UpdateView(False)
         self.tree_model = QStandardItemModel()
         self.treeView.setModel(self.tree_model)
@@ -1166,28 +1169,28 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
     def on_surface_cfg(self):
         """ Open a function to use surface reconstruction """
         # Cannot perform surface reconstruction operation
-#        if not self.vtkWidget.ValidSurfaces():
-#            if hasattr(QMessageBox, "Ok"):
-#                QMessageBox.information(
-#                    self,
-#                    "Surface Recontruction Dialog",
-#                    "Cannot perform Surface Reconstruction Operation, it only works with valid surface data",
-#                    getattr(QMessageBox, "Ok")
-#                )
-#            return
+        if not self.vtkWidget.ValidSurfaces():
+            if hasattr(QMessageBox, "Ok"):
+                QMessageBox.information(
+                    self,
+                    "Surface Recontruction Dialog",
+                    "Cannot perform Surface Reconstruction Operation, it only works with valid surface data",
+                    getattr(QMessageBox, "Ok")
+                )
+            return
 
-#        if self.vtkWidget:
-#            model = self.vtkWidget.model
-#            if not model:
-#                return
-#            # Switch to the first tab of the tabWidget
-#            self.tabWidget.setCurrentIndex(0)  # Index 0 corresponds to the first tab
-        #dialog = SurfaceDialog(self, self.surfacecfg, self.delaunaycfg)
-        dialog = SurfaceDialog(self)
-        result = dialog.exec()
-        if hasattr(QDialog, "Accepted") and result == getattr(QDialog,"Accepted"):
-            self.surfacecfg = dialog.surfacecfg
-            self.delaunaycfg = dialog.delaunaycfg
+        if self.vtkWidget:
+            model = self.vtkWidget.model
+            if not model:
+                return
+            # Switch to the first tab of the tabWidget
+            self.tabWidget.setCurrentIndex(0)  # Index 0 corresponds to the first tab
+            #dialog = SurfaceDialog(self, self.surfacecfg, self.delaunaycfg)
+            dialog = SurfaceDialog(self)
+            result = dialog.exec()
+            if hasattr(QDialog, "Accepted") and result == getattr(QDialog,"Accepted"):
+                self.surfacecfg = dialog.surfacecfg
+                self.delaunaycfg = dialog.delaunaycfg
 
 def main():
     app = QtWidgets.QApplication(sys.argv)

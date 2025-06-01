@@ -1,6 +1,24 @@
 from enum import Enum
 
 
+class Params(Enum):
+    PolylineDefaultWidth = 2.0
+    PolylineSelectedWidth = 5.0
+    PolylineMinWidth = 2.0
+    PolylineMaxWidth = 24.0
+    SelectedColor = (0, 1, 0)
+    PointWinSelectedRadius = 30
+    PointWinRadius = 20
+    PointWinTheta = 20
+    PointWinPhi = 20
+    PointWinSize = 5.0
+    PointSize = 8.0
+    PolylabelFontSize = 10
+    PolylabelColor = (0, 1, 0)
+    PointlabelFontSize = 10
+    PointlabelColor = (1, 1, 0)
+
+
 class FileType(Enum):
     """Represents the possible types of files"""
 
@@ -113,12 +131,12 @@ class DelaunayCfg:
         }
 
     def config_default(self):
-        self.cleaner_tolerance=0.001
-        self.delaunay_alpha=0.0
-        self.delaunay_tolerance=0.001
-        self.delaunay_offset=5.0
-        self.feature_angle=60.0
-        self.projection_plane_mode=0
+        self.cleaner_tolerance = 0.001
+        self.delaunay_alpha = 0.0
+        self.delaunay_tolerance = 0.001
+        self.delaunay_offset = 5.0
+        self.feature_angle = 60.0
+        self.projection_plane_mode = 0
 
     def config_high_resolution(self):
         self.cleaner_tolerance = 0.0001

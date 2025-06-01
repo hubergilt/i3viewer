@@ -6,7 +6,7 @@ import math
 import csv
 import sys
 
-from i3viewer.i3enums import FileType
+from i3viewer.i3enums import FileType, Params
 
 class i3model:
     def __init__(self, file_path):
@@ -25,6 +25,19 @@ class i3model:
         self.pointlabel_id = 1
 
         self.actors = []
+
+    def RemoveAllActors(self):
+        self.polylines = {}
+        self.points = {}
+        self.surfaces = {}
+        self.polylabels = {}
+        self.pointlabels = {}
+
+        self.polyline_id = 1
+        self.point_id = 1
+        self.surface_id = 1
+        self.polylabel_id = 1
+        self.pointlabel_id = 1
 
     def polylines_format_actors(self, fileType):
         """Executes the full pipeline."""
@@ -212,7 +225,7 @@ class i3model:
         actor.SetMapper(mapper)
         actor.GetProperty().SetRepresentationToWireframe()
         actor.GetProperty().SetColor(color)
-        actor.GetProperty().SetLineWidth(2)
+        actor.GetProperty().SetLineWidth(Params.PolylineDefaultWidth.value)
         setattr(actor, "polyline_id", polyline_id)
         setattr(actor, "color", color)
         return actor
@@ -387,11 +400,11 @@ class i3model:
 
         # Create and configure point actor
         if sys.platform.startswith('win'):
-            return self.point_build_actor_win(points, vertices_cell, color, point_id)
+            return self.points_build_actor_win(points, vertices_cell, color, point_id)
         else:
-            return self.point_build_actor(points, vertices_cell, color, point_id)
+            return self.points_build_actor(points, vertices_cell, color, point_id)
 
-    def point_build_actor_win(self, points, vertices_cell, color, point_id):
+    def points_build_actor_win(self, points, vertices_cell, color, point_id):
         # Create polydata
         poly_data = vtk.vtkPolyData()
         poly_data.SetPoints(points)
@@ -399,9 +412,9 @@ class i3model:
 
         # Create a sphere source for glyphing
         sphere = vtk.vtkSphereSource()
-        sphere.SetRadius(20)  # Size of each sphere
-        sphere.SetThetaResolution(20)
-        sphere.SetPhiResolution(20)
+        sphere.SetRadius(Params.PointWinRadius.value)  # Size of each sphere
+        sphere.SetThetaResolution(Params.PointWinTheta.value)
+        sphere.SetPhiResolution(Params.PointWinPhi.value)
 
         # Create glyph3D filter
         glyph = vtk.vtkGlyph3D()
@@ -418,8 +431,7 @@ class i3model:
         actor.SetMapper(mapper)
         #actor.GetProperty().SetRepresentationToPoints()
         actor.GetProperty().SetColor(color)
-        actor.GetProperty().SetPointSize(5.0)
-        actor.GetProperty().SetOpacity(1.0)
+        actor.GetProperty().SetPointSize(Params.PointWinSize.value)
 
         # Custom point ID attribute
         setattr(actor, "point_id", point_id)
@@ -428,7 +440,7 @@ class i3model:
 
         return actor
 
-    def point_build_actor(self, points, vertices_cell, color, point_id):
+    def points_build_actor(self, points, vertices_cell, color, point_id):
         """Helper function to construct and return a VTK actor for points."""
         poly_data = vtk.vtkPolyData()
         poly_data.SetPoints(points)
@@ -441,8 +453,7 @@ class i3model:
         actor.SetMapper(mapper)
         actor.GetProperty().SetRepresentationToPoints()
         actor.GetProperty().SetColor(color)
-        actor.GetProperty().SetPointSize(8.0)
-        actor.GetProperty().SetOpacity(1.0)
+        actor.GetProperty().SetPointSize(Params.PointSize.value)
         actor.GetProperty().RenderPointsAsSpheresOn()  # Enable circular points
 
         setattr(actor, "point_id", point_id)
@@ -876,8 +887,8 @@ class i3model:
         label = vtk.vtkBillboardTextActor3D()
         label.SetInput(label_text)
         label.SetPosition(midpoint)
-        label.GetTextProperty().SetFontSize(9)
-        label.GetTextProperty().SetColor(0, 1, 0)
+        label.GetTextProperty().SetFontSize(int(Params.PolylabelFontSize.value))
+        label.GetTextProperty().SetColor(Params.PolylabelColor.value)
 
         return label
 
@@ -887,7 +898,8 @@ class i3model:
         polyData = mapper.GetInput()
 
         if polyData is None or polyData.GetNumberOfPoints() == 0:
-            raise ValueError("Actor does not contain valid point data.")
+            return
+            #raise ValueError("Actor does not contain valid point data.")
 
         # Use the first point for labeling
         point = polyData.GetPoint(0)
@@ -896,8 +908,8 @@ class i3model:
         label = vtk.vtkBillboardTextActor3D()
         label.SetInput(label_text)
         label.SetPosition(point)
-        label.GetTextProperty().SetFontSize(9)
-        label.GetTextProperty().SetColor(1, 1, 0)  # Yellow
+        label.GetTextProperty().SetFontSize(int(Params.PointlabelFontSize.value))
+        label.GetTextProperty().SetColor(Params.PointlabelColor.value)  # Yellow
 
         return label
 
