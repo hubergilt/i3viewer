@@ -29,6 +29,7 @@ class i3vtkWidget(QWidget):
         self.surfaceActor = False
         self.surface = False
         self.wireframe = False
+        self.scalarBar = vtk.vtkScalarBarActor()
 
         if self.Parent == None:
             self.resize(500, 500)
@@ -374,19 +375,24 @@ class i3vtkWidget(QWidget):
         self.camera.ParallelProjectionOn()
 
     def AddActor(self, pvtkActor):
-        #if self.ShowEdges:
-        #    pvtkActor.GetProperty().EdgeVisibilityOn()
-
         if self.renderer is None:
             raise RuntimeError("self.interactor could not be created.")
         self.renderer.AddActor(pvtkActor)
-        #self.ResetCamera()
 
     def RemoveActor(self, pvtkActor):
         if self.renderer is None:
             raise RuntimeError("self.interactor could not be created.")
         self.renderer.RemoveActor(pvtkActor)
-        #self.ResetCamera()
+
+    def AddActor2D(self, pvtkActor):
+        if self.renderer is None:
+            raise RuntimeError("self.interactor could not be created.")
+        self.renderer.AddActor2D(pvtkActor)
+
+    def RemoveActor2D(self, pvtkActor):
+        if self.renderer is None:
+            raise RuntimeError("self.interactor could not be created.")
+        self.renderer.RemoveActor2D(pvtkActor)
 
     def SetRepresentation(self, aTyp):
         ''' aTyp = 1 - Points
@@ -519,6 +525,11 @@ class i3vtkWidget(QWidget):
                     property.SetColor(color)
                     property.SetLineWidth(width)
 
+            if enable:
+                self.AddScaleBar()
+            else:
+                self.RemoveScaleBar()
+
             if self.polylabel:
                 self.CleanPolylabels()
                 self.OnPolylabels(self.polylabel, FileType.DB)
@@ -528,10 +539,7 @@ class i3vtkWidget(QWidget):
     def rainbow_color(self, tonne, min_tonne=0, max_tonne=100):
         """Convert a value to a color using the VTK rainbow colormap."""
         # Create rainbow colormap
-        lut = vtk.vtkLookupTable()
-        lut.SetHueRange(0.667, 0.0)  # Blue to red
-        lut.SetSaturationRange(1.0, 1.0)
-        lut.SetValueRange(1.0, 1.0)
+        lut = Params.LookupTable.value
         lut.SetTableRange(min_tonne, max_tonne)
         lut.Build()
 
@@ -578,6 +586,36 @@ class i3vtkWidget(QWidget):
                          (max_width - min_width) / (max_tonne - min_tonne)
 
         return polyline_width
+
+
+    def AddScaleBar(self):
+        """ Add Color Scale Bar for Tonnes """
+        lut = Params.LookupTable.value
+        min_tonne, max_tonne = lut.GetTableRange()
+        lut.SetTableRange(min_tonne/1000000, max_tonne/1000000)
+        lut.Build()
+
+        # Create scalar bar (color bar)
+        self.scalarBar.SetLookupTable(lut)
+        self.scalarBar.SetTitle("Mt     ")
+        self.scalarBar.SetNumberOfLabels(5)
+        self.scalarBar.SetPosition(0.85, 0.1)  # Position on right side
+        self.scalarBar.SetWidth(0.04)
+        self.scalarBar.SetHeight(0.8)
+        self.scalarBar.SetLabelFormat("%.1f")
+
+        # Customize scalar bar appearance
+        self.scalarBar.GetTitleTextProperty().SetColor(1, 1, 0)
+        self.scalarBar.GetTitleTextProperty().SetFontSize(14)
+        self.scalarBar.GetLabelTextProperty().SetColor(1, 1, 0)
+        self.scalarBar.GetLabelTextProperty().SetFontSize(12)
+
+        self.AddActor2D(self.scalarBar)
+
+    def RemoveScaleBar(self):
+        """ Remove Color Scale Bar for Tonnes """
+        if self.scalarBar:
+            self.RemoveActor2D(self.scalarBar)
 
     def OnPolylabels(self, enable, fileType):
         if not self.model:

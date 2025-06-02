@@ -1,5 +1,15 @@
 from enum import Enum
+import vtk
 
+class LUT:
+    lut = vtk.vtkLookupTable()
+
+    def __init__(self):
+        self.lut.SetNumberOfTableValues(256)
+        self.lut.SetRange(1000000, 10000000)  # 1M to 10M
+        self.lut.SetSaturationRange(1.0, 1.0)  # Full saturation
+        self.lut.SetValueRange(1.0, 1.0)  # Full brightness
+        self.lut.SetHueRange(0.667, 0.0)  # Blue to red
 
 class Params(Enum):
     PolylineDefaultWidth = 2.0
@@ -17,6 +27,7 @@ class Params(Enum):
     PolylabelColor = (0, 1, 0)
     PointlabelFontSize = 10
     PointlabelColor = (1, 1, 0)
+    LookupTable = LUT().lut
 
 
 class FileType(Enum):
