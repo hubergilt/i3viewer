@@ -913,7 +913,7 @@ class i3model:
 
         return label
 
-    def surface_reconstruction_actor(self, contour_polydata, delaunaycfg):
+    def delaunay_reconstruction_actor(self, contour_polydata, delaunaycfg):
         """
         Creates a surface mesh from contour lines using Delaunay triangulation.
 
@@ -974,4 +974,37 @@ class i3model:
         actor = vtk.vtkActor()
         actor.SetMapper(mapper)
 
+        return actor
+
+    def surface_reconstruction_actor(self, contour_polydata, delaunaycfg, surfacecfg):
+        actor = self.delaunay_reconstruction_actor(contour_polydata, delaunaycfg)
+        surface_color = surfacecfg.surface_color
+        wireframe_color= surfacecfg.wireframe_color
+        surface_opacity = surfacecfg.surface_opacity
+        edge_thickness= surfacecfg.edge_thickness
+        if hasattr(actor, 'GetProperty'):
+            property = getattr(actor, 'GetProperty')()
+            property.SetColor(surface_color)
+            property.SetOpacity(surface_opacity)
+            property.SetEdgeVisibility(False)
+            property.SetEdgeColor(wireframe_color)
+            property.SetLineWidth(edge_thickness)
+            property.SetRepresentationToSurface()
+        return actor
+
+    def wireframe_reconstruction_actor(self, contour_polydata, delaunaycfg, surfacecfg):
+        actor = self.delaunay_reconstruction_actor(contour_polydata, delaunaycfg)
+        surface_color = surfacecfg.surface_color
+        wireframe_color= surfacecfg.wireframe_color
+        surface_opacity = surfacecfg.surface_opacity
+        edge_thickness= surfacecfg.edge_thickness
+        if hasattr(actor, 'GetProperty'):
+            property = getattr(actor, 'GetProperty')()
+            surface_color = wireframe_color
+            property.SetColor(surface_color)
+            property.SetOpacity(surface_opacity)
+            property.SetEdgeVisibility(True)
+            property.SetEdgeColor(wireframe_color)
+            property.SetLineWidth(edge_thickness)
+            property.SetRepresentationToWireframe()
         return actor

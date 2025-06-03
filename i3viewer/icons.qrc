@@ -1,5 +1,6 @@
 <RCC>
   <qresource prefix="/">
+    <file>icons/contour.svg</file>
     <file>icons/xyzs.svg</file>
     <file>icons/polyabc.svg</file>
     <file>icons/surfacecfg.svg</file>

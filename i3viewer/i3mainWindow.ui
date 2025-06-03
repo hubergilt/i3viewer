@@ -140,7 +140,7 @@
      <x>0</x>
      <y>0</y>
      <width>1002</width>
-     <height>27</height>
+     <height>22</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
@@ -236,9 +236,12 @@
    <addaction name="actionUnpick"/>
    <addaction name="actionPolyLabel"/>
    <addaction name="actionPointLabel"/>
+   <addaction name="separator"/>
+   <addaction name="actionContour"/>
    <addaction name="actionSurface"/>
    <addaction name="actionWireframe"/>
    <addaction name="actionSurfaceCfg"/>
+   <addaction name="separator"/>
   </widget>
   <action name="actionOpenFile">
    <property name="enabled">
@@ -548,7 +551,7 @@
     <string>Wireframe</string>
    </property>
    <property name="toolTip">
-    <string>Wireframe reconstruction</string>
+    <string>Wireframe Reconstruction</string>
    </property>
   </action>
   <action name="actionSurfaceCfg">
@@ -561,6 +564,21 @@
    </property>
    <property name="toolTip">
     <string>Surface Configuration...</string>
+   </property>
+  </action>
+  <action name="actionContour">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset resource="icons.qrc">
+     <normaloff>:/icons/contour.svg</normaloff>:/icons/contour.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Contour</string>
+   </property>
+   <property name="toolTip">
+    <string>Show Contour Lines</string>
    </property>
   </action>
  </widget>

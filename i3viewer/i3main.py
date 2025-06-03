@@ -92,6 +92,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         self.actionUnpick.triggered.connect(self.on_unpick)
         self.actionPolyLabel.triggered.connect(self.on_polylabel)
         self.actionPointLabel.triggered.connect(self.on_pointlabel)
+        self.actionContour.triggered.connect(self.on_contour)
         self.actionSurface.triggered.connect(self.on_surface)
         self.actionWireframe.triggered.connect(self.on_wireframe)
         self.actionSurfaceCfg.triggered.connect(self.on_surface_cfg)
@@ -111,7 +112,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             home_dir = os.path.expanduser("~")
             file_dialog.setDirectory(home_dir)
 
-        file_dialog.setNameFilter("XYZ Files for Polylines (*.xyz);;CSV Files for Polylines (*.csv);;SRG Files for Points (*.srg);;XYZS Files for Surfaces (*.xyzs);;SQLite Files for Polylines and Points (*.db)")
+        file_dialog.setNameFilter("XYZ Files for Polylines (*.xyz);;CSV Files for Polylines (*.csv);;SRG Files for Points (*.srg);;XYZS Files for Surfaces (*.xyzs);;SQLite Files for Surfaces, Polylines and Points (*.db)")
 
         if hasattr(QtWidgets.QFileDialog, "ExistingFile"):
             file_dialog.setFileMode(getattr(QtWidgets.QFileDialog,"ExistingFile"))
@@ -166,7 +167,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             return
 
         self.vtkWidget.import_file(self.file_path, FileType.XYZS, newFile=openNew)
-        self.vtkWidget.OnSurfaceReconstruction(True, self.fileType, self.surfacecfg, self.delaunaycfg)
+        #self.vtkWidget.OnSurfaceReconstruction(True, self.fileType, self.surfacecfg, self.delaunaycfg)
         self.actionSurface.setChecked(True)
         self.treeview_setup()
         self.tableview_release()
@@ -195,9 +196,14 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
 
         self.vtkWidget.import_file(self.file_path, FileType.DB, newFile=True)
 
+        if self.vtkWidget and self.vtkWidget.model:
+            if self.vtkWidget.model.hasSurfacesTable():
+                self.actionSurface.setChecked(True)
+
         self.treeview_setup()
         self.tableview_release()
         self.tableview_setup()
+
         self.config_heatmap(HeatMapCfg.OPEN)
 
         self.statusbar.showMessage(
@@ -348,8 +354,8 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             self.actionPointLabel.setChecked(False)
             self.vtkWidget.CleanPolylabels()
             self.vtkWidget.CleanPointlabels()
-            self.vtkWidget.RemoveSurfaceActor()
             self.vtkWidget.RemoveAllActors()
+            self.actionContour.setChecked(False)
             self.actionSurface.setChecked(False)
             self.actionWireframe.setChecked(False)
             self.vtkWidget.UpdateView(False)
@@ -982,7 +988,6 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
                     if self.tableModelPoints.data(index, getattr(Qt, "DisplayRole")) == point_id:
                         found_row = row
                         break
-
             if found_row == -1:
                 print(f"No row found with point_id '{point_id}'.")
                 return
@@ -1126,6 +1131,66 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         self.vtkWidget.pointlabel = checked
         self.vtkWidget.OnPointLabels(checked, self.fileType)
 
+#    def on_surface_old(self, checked):
+#        """ Open a function to use surface reconstruction """
+#        # Cannot perform surface reconstruction operation
+#        if not self.vtkWidget.ValidSurfaces():
+#            if hasattr(QMessageBox, "Ok"):
+#                QMessageBox.information(
+#                    self,
+#                    "Surface Recontruction Dialog",
+#                    "Cannot perform Surface Reconstruction Operation, it only works with valid surface data",
+#                    getattr(QMessageBox, "Ok")
+#                )
+#            self.actionSurface.setChecked(False)
+#            return
+#
+#        model = self.vtkWidget.model
+#        if not model:
+#            return
+#        self.vtkWidget.surface = checked
+#        self.vtkWidget.OnSurfaceReconstruction(checked, self.fileType, self.surfacecfg, self.delaunaycfg)
+
+    def on_contour(self, checked):
+        """ Open a function to use surface reconstruction """
+        # Cannot perform surface reconstruction operation
+        if not self.vtkWidget.ValidSurfaces():
+            if hasattr(QMessageBox, "Ok"):
+                QMessageBox.information(
+                    self,
+                    "Surface Recontruction Dialog",
+                    "Cannot perform Surface Reconstruction Operation, it only works with valid surface data",
+                    getattr(QMessageBox, "Ok")
+                )
+            self.actionContour.setChecked(False)
+            return
+
+        if self.vtkWidget:
+            if checked:
+                self.vtkWidget.AddSurfaceActors()
+            else:
+                self.vtkWidget.RemoveSurfaceActors()
+            self.vtkWidget.UpdateView(False)
+
+#    def on_wireframe_old(self, checked):
+#        """ Open a function to use surface reconstruction """
+#        # Cannot perform surface reconstruction operation
+#        if not self.vtkWidget.ValidSurfaces():
+#            if hasattr(QMessageBox, "Ok"):
+#                QMessageBox.information(
+#                    self,
+#                    "Surface Recontruction Dialog",
+#                    "Cannot perform Surface Reconstruction Operation, it only works with valid surface data",
+#                    getattr(QMessageBox, "Ok")
+#                )
+#            self.actionWireframe.setChecked(False)
+#            return
+#        model = self.vtkWidget.model
+#        if not model:
+#            return
+#        self.vtkWidget.wireframe = checked
+#        self.vtkWidget.OnWireframeReconstruction(checked, self.fileType, self.surfacecfg, self.delaunaycfg)
+
     def on_surface(self, checked):
         """ Open a function to use surface reconstruction """
         # Cannot perform surface reconstruction operation
@@ -1140,11 +1205,13 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             self.actionSurface.setChecked(False)
             return
 
-        model = self.vtkWidget.model
-        if not model:
-            return
-        self.vtkWidget.surface = checked
-        self.vtkWidget.OnSurfaceReconstruction(checked, self.fileType, self.surfacecfg, self.delaunaycfg)
+        if self.vtkWidget:
+            self.vtkWidget.surface = checked
+            if checked:
+                self.vtkWidget.AddSurfaceActor()
+            else:
+                self.vtkWidget.RemoveSurfaceActor()
+            self.vtkWidget.UpdateView(False)
 
     def on_wireframe(self, checked):
         """ Open a function to use surface reconstruction """
@@ -1160,11 +1227,13 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             self.actionWireframe.setChecked(False)
             return
 
-        model = self.vtkWidget.model
-        if not model:
-            return
-        self.vtkWidget.wireframe = checked
-        self.vtkWidget.OnWireframeReconstruction(checked, self.fileType, self.surfacecfg, self.delaunaycfg)
+        if self.vtkWidget:
+            self.vtkWidget.wireframe = checked
+            if checked:
+                self.vtkWidget.AddWireframeActor()
+            else:
+                self.vtkWidget.RemoveWireframeActor()
+            self.vtkWidget.UpdateView(False)
 
     def on_surface_cfg(self):
         """ Open a function to use surface reconstruction """
@@ -1189,8 +1258,11 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             dialog = SurfaceDialog(self)
             result = dialog.exec()
             if hasattr(QDialog, "Accepted") and result == getattr(QDialog,"Accepted"):
-                self.surfacecfg = dialog.surfacecfg
                 self.delaunaycfg = dialog.delaunaycfg
+                self.surfacecfg = dialog.surfacecfg
+                cfg = self.delaunaycfg, self.surfacecfg
+                self.vtkWidget.UpdateSurface(self.fileType, *cfg)
+                self.vtkWidget.UpdateView(False)
 
 def main():
     app = QtWidgets.QApplication(sys.argv)

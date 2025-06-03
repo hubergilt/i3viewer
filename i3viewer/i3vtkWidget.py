@@ -3,7 +3,7 @@ import vtkmodules.qt.QVTKRenderWindowInteractor as QVTK
 from PySide6.QtWidgets import QHBoxLayout, QWidget
 from vtk import vtkActor
 
-from i3viewer.i3enums import FileType, Params
+from i3viewer.i3enums import DelaunayCfg, FileType, Params, SurfaceCfg
 from i3viewer.i3model import i3model
 from i3viewer.i3point import NonModalDialog as PointDialog
 from i3viewer.i3polyline import NonModalDialog as PolylineDialog
@@ -18,6 +18,7 @@ class i3vtkWidget(QWidget):
         self.picker = None
         self.model = None
         self.actors = []
+        self.surfaceActors = []
         self.TrihedronPos = 1
         self.selected_actor = None
         self.polylineDialog = PolylineDialog(0, 0, 0, [])
@@ -26,10 +27,11 @@ class i3vtkWidget(QWidget):
         self.unpick = False
         self.polylabel = False
         self.pointlabel = False
-        self.surfaceActor = False
+        self.surfaceActor = None
+        self.wireframeActor = None
         self.surface = False
         self.wireframe = False
-        self.scalarBar = vtk.vtkScalarBarActor()
+        self.scalarBarActor = vtk.vtkScalarBarActor()
 
         if self.Parent == None:
             self.resize(500, 500)
@@ -53,6 +55,7 @@ class i3vtkWidget(QWidget):
             self.model.polyline_id = 1
             self.model.point_id = 1
             self.model.surface_id = 1
+            cfg = DelaunayCfg(), SurfaceCfg()
 
         if fileType == FileType.DB:
             if self.model.hasPointsTable():
@@ -63,7 +66,11 @@ class i3vtkWidget(QWidget):
                 self.actors.extend(actors)
             if self.model.hasSurfacesTable():
                 actors = self.model.surfaces_format_actors(fileType)
-                self.actors.extend(actors)
+                #self.actors.extend(actors)
+                self.surfaceActors.extend(actors)
+                self.surfaceActor = self.surface_reconstruction_actor(fileType, *cfg)
+                self.actors.append(self.surfaceActor)
+                self.wireframeActor = self.wireframe_reconstruction_actor(fileType, *cfg)
         elif fileType == FileType.XYZ or fileType == FileType.CSV:
             actors = self.model.polylines_format_actors(fileType)
             self.actors.extend(actors)
@@ -74,8 +81,11 @@ class i3vtkWidget(QWidget):
             self.pointlabels_create_actors(fileType)
         elif fileType == FileType.XYZS:
             actors = self.model.surfaces_format_actors(fileType)
-            self.actors.extend(actors)
-
+            #self.actors.extend(actors)
+            self.surfaceActors.extend(actors)
+            self.surfaceActor = self.surface_reconstruction_actor(fileType, *cfg)
+            self.actors.append(self.surfaceActor)
+            self.wireframeActor = self.wireframe_reconstruction_actor(fileType, *cfg)
         if self.actors:
             for actor in self.actors:
                 self.AddActor(actor)
@@ -112,6 +122,10 @@ class i3vtkWidget(QWidget):
             for actor in self.actors:
                 self.RemoveActor(actor)
             self.actors = []
+        self.RemoveSurfaceActors()
+        self.RemoveSurfaceActor()
+        self.RemoveWireframeActor()
+        self.RemoveScaleBarActor()
         self.UpdateView()
         if self.model:
             self.model.RemoveAllActors()
@@ -526,9 +540,9 @@ class i3vtkWidget(QWidget):
                     property.SetLineWidth(width)
 
             if enable:
-                self.AddScaleBar()
+                self.AddScaleBarActor()
             else:
-                self.RemoveScaleBar()
+                self.RemoveScaleBarActor()
 
             if self.polylabel:
                 self.CleanPolylabels()
@@ -588,7 +602,7 @@ class i3vtkWidget(QWidget):
         return polyline_width
 
 
-    def AddScaleBar(self):
+    def AddScaleBarActor(self):
         """ Add Color Scale Bar for Tonnes """
         lut = Params.LookupTable.value
         min_tonne, max_tonne = lut.GetTableRange()
@@ -596,26 +610,26 @@ class i3vtkWidget(QWidget):
         lut.Build()
 
         # Create scalar bar (color bar)
-        self.scalarBar.SetLookupTable(lut)
-        self.scalarBar.SetTitle("Mt     ")
-        self.scalarBar.SetNumberOfLabels(5)
-        self.scalarBar.SetPosition(0.85, 0.1)  # Position on right side
-        self.scalarBar.SetWidth(0.04)
-        self.scalarBar.SetHeight(0.8)
-        self.scalarBar.SetLabelFormat("%.1f")
+        self.scalarBarActor.SetLookupTable(lut)
+        self.scalarBarActor.SetTitle("Mt     ")
+        self.scalarBarActor.SetNumberOfLabels(5)
+        self.scalarBarActor.SetPosition(0.85, 0.1)  # Position on right side
+        self.scalarBarActor.SetWidth(0.04)
+        self.scalarBarActor.SetHeight(0.8)
+        self.scalarBarActor.SetLabelFormat("%.1f")
 
         # Customize scalar bar appearance
-        self.scalarBar.GetTitleTextProperty().SetColor(1, 1, 0)
-        self.scalarBar.GetTitleTextProperty().SetFontSize(14)
-        self.scalarBar.GetLabelTextProperty().SetColor(1, 1, 0)
-        self.scalarBar.GetLabelTextProperty().SetFontSize(12)
+        self.scalarBarActor.GetTitleTextProperty().SetColor(1, 1, 0)
+        self.scalarBarActor.GetTitleTextProperty().SetFontSize(14)
+        self.scalarBarActor.GetLabelTextProperty().SetColor(1, 1, 0)
+        self.scalarBarActor.GetLabelTextProperty().SetFontSize(12)
 
-        self.AddActor2D(self.scalarBar)
+        self.AddActor2D(self.scalarBarActor)
 
-    def RemoveScaleBar(self):
+    def RemoveScaleBarActor(self):
         """ Remove Color Scale Bar for Tonnes """
-        if self.scalarBar:
-            self.RemoveActor2D(self.scalarBar)
+        if self.scalarBarActor:
+            self.RemoveActor2D(self.scalarBarActor)
 
     def OnPolylabels(self, enable, fileType):
         if not self.model:
@@ -707,93 +721,164 @@ class i3vtkWidget(QWidget):
         if self.surfaceActor:
             self.RemoveActor(self.surfaceActor)
 
-    def OnSurfaceReconstruction(self, enable, fileType, surfacecfg, delaunaycfg):
+    def surface_reconstruction_actor(self, fileType, delaunaycfg, surfacecfg):
         if not self.model:
             return
-        if self.ValidSurfaces():
-            if enable:
-                self.reconstruction_surface_actor(fileType, delaunaycfg)
-                self.AddSurfaceActor()
-            else:
-                if not self.wireframe:
-                    self.RemoveSurfaceActor()
-            self.configSurface(surfacecfg)
-            self.UpdateView(False)
-
-    def OnWireframeReconstruction(self, enable, fileType, surfacecfg, delaunaycfg):
-        if not self.model:
-            return
-        if self.ValidSurfaces():
-            if enable:
-                self.reconstruction_surface_actor(fileType, delaunaycfg)
-                self.AddSurfaceActor()
-            else:
-                if not self.surface:
-                    self.RemoveSurfaceActor()
-            self.configSurface(surfacecfg)
-            self.UpdateView(False)
-
-    def reconstruction_surface_actor(self, fileType, delaunaycfg):
-        if not self.model:
-            return
-        if self.surfaceActor:
-            self.RemoveActor(self.surfaceActor)
 
         # Create a vtkAppendPolyData to combine all contour lines
         append_contours = vtk.vtkAppendPolyData()
 
-        # Track if we have any valid surfaces to process
-        valid_surfaces_found = False
+        # Create contours at different surface elevations
+        for actor in self.surfaceActors:
+            mapper = actor.GetMapper()
+            if mapper:
+                polyData = mapper.GetInput()
+                if polyData and polyData.GetNumberOfPoints() > 0:
+                    if fileType == FileType.XYZS or fileType == FileType.DB:
+                        append_contours.AddInputData(polyData)
+
+        append_contours.Update()
+        contour_polydata = append_contours.GetOutput()
+        return self.model.surface_reconstruction_actor(contour_polydata, delaunaycfg, surfacecfg)
+
+    def AddSurfaceActors(self):
+        for actor in self.surfaceActors:
+            self.AddActor(actor)
+
+    def RemoveSurfaceActors(self):
+        for actor in self.surfaceActors:
+            self.RemoveActor(actor)
+
+    def wireframe_reconstruction_actor(self, fileType, delaunaycfg, surfacecfg):
+        if not self.model:
+            return
+
+        # Create a vtkAppendPolyData to combine all contour lines
+        append_contours = vtk.vtkAppendPolyData()
 
         # Create contours at different surface elevations
-        for surface_id, _ in self.model.surfaces.items():
-            actor = self.surfaces_get_actor(surface_id)
-            if actor:
-                mapper = actor.GetMapper()
-                if mapper:
-                    polyData = mapper.GetInput()
-                    if polyData and polyData.GetNumberOfPoints() > 0:
-                        if fileType == FileType.XYZS or fileType == FileType.DB:
-                            append_contours.AddInputData(polyData)
-                            valid_surfaces_found = True
+        for actor in self.surfaceActors:
+            mapper = actor.GetMapper()
+            if mapper:
+                polyData = mapper.GetInput()
+                if polyData and polyData.GetNumberOfPoints() > 0:
+                    if fileType == FileType.XYZS or fileType == FileType.DB:
+                        append_contours.AddInputData(polyData)
 
-        # Only proceed if we found valid surfaces to process
-        if valid_surfaces_found:
-            append_contours.Update()
-            contour_polydata = append_contours.GetOutput()
-            self.surfaceActor = self.model.surface_reconstruction_actor(contour_polydata, delaunaycfg)
-            if self.surfaceActor:
-                self.AddActor(self.surfaceActor)
-        else:
-            print("No valid surfaces found for reconstruction")
+        append_contours.Update()
+        contour_polydata = append_contours.GetOutput()
+        return self.model.wireframe_reconstruction_actor(contour_polydata, delaunaycfg, surfacecfg)
 
+    def AddWireframeActor(self):
+        if self.wireframeActor:
+            self.AddActor(self.wireframeActor)
 
-    def configSurface(self, surfacecfg):
-        surface_color = surfacecfg.surface_color
-        wireframe_color= surfacecfg.wireframe_color
-        surface_opacity = surfacecfg.surface_opacity
-        edge_thickness= surfacecfg.edge_thickness
-        if hasattr(self.surfaceActor, 'GetProperty'):
-            property = getattr(self.surfaceActor, 'GetProperty')()
-            if self.surface and self.wireframe:
-                property.SetColor(surface_color)
-                property.SetOpacity(surface_opacity)
-                property.SetEdgeVisibility(True)
-                property.SetEdgeColor(wireframe_color)
-                property.SetLineWidth(edge_thickness)
-                property.SetRepresentationToSurface()
-            elif self.surface and not self.wireframe:
-                property.SetColor(surface_color)
-                property.SetOpacity(surface_opacity)
-                property.SetEdgeVisibility(False)
-                property.SetEdgeColor(wireframe_color)
-                property.SetLineWidth(edge_thickness)
-                property.SetRepresentationToSurface()
-            elif not self.surface and self.wireframe:
-                surface_color = wireframe_color
-                property.SetColor(surface_color)
-                property.SetOpacity(surface_opacity)
-                property.SetEdgeVisibility(True)
-                property.SetEdgeColor(wireframe_color)
-                property.SetLineWidth(edge_thickness)
-                property.SetRepresentationToWireframe()
+    def RemoveWireframeActor(self):
+        if self.wireframeActor:
+            self.RemoveActor(self.wireframeActor)
+
+    def UpdateSurface(self, fileType, delaunaycfg, surfacecfg):
+        cfg = delaunaycfg, surfacecfg
+
+        self.RemoveSurfaceActor()
+        self.RemoveWireframeActor()
+
+        self.surfaceActor = self.surface_reconstruction_actor(fileType, *cfg)
+        self.wireframeActor = self.wireframe_reconstruction_actor(fileType, *cfg)
+
+        if self.surface:
+            self.AddSurfaceActor()
+        self.AddSurfaceActor()
+        if self.wireframe:
+            self.AddWireframeActor()
+
+#    def OnSurfaceReconstruction(self, enable, fileType, surfacecfg, delaunaycfg):
+#        if not self.model:
+#            return
+#        if self.ValidSurfaces():
+#            if enable:
+#                self.reconstruction_surface_actor(fileType, delaunaycfg)
+#                self.AddSurfaceActor()
+#            else:
+#                if not self.wireframe:
+#                    self.RemoveSurfaceActor()
+#            self.configSurface(surfacecfg)
+#            self.UpdateView(False)
+#
+#    def OnWireframeReconstruction(self, enable, fileType, surfacecfg, delaunaycfg):
+#        if not self.model:
+#            return
+#        if self.ValidSurfaces():
+#            if enable:
+#                self.reconstruction_surface_actor(fileType, delaunaycfg)
+#                self.AddSurfaceActor()
+#            else:
+#                if not self.surface:
+#                    self.RemoveSurfaceActor()
+#            self.configSurface(surfacecfg)
+#            self.UpdateView(False)
+#
+#    def reconstruction_surface_actor(self, fileType, delaunaycfg):
+#        if not self.model:
+#            return
+#        if self.surfaceActor:
+#            self.RemoveActor(self.surfaceActor)
+#
+#        # Create a vtkAppendPolyData to combine all contour lines
+#        append_contours = vtk.vtkAppendPolyData()
+#
+#        # Track if we have any valid surfaces to process
+#        valid_surfaces_found = False
+#
+#        # Create contours at different surface elevations
+#        for surface_id, _ in self.model.surfaces.items():
+#            actor = self.surfaces_get_actor(surface_id)
+#            if actor:
+#                mapper = actor.GetMapper()
+#                if mapper:
+#                    polyData = mapper.GetInput()
+#                    if polyData and polyData.GetNumberOfPoints() > 0:
+#                        if fileType == FileType.XYZS or fileType == FileType.DB:
+#                            append_contours.AddInputData(polyData)
+#                            valid_surfaces_found = True
+#
+#        # Only proceed if we found valid surfaces to process
+#        if valid_surfaces_found:
+#            append_contours.Update()
+#            contour_polydata = append_contours.GetOutput()
+#            self.surfaceActor = self.model.surface_reconstruction_actor(contour_polydata, delaunaycfg)
+#            if self.surfaceActor:
+#                self.AddActor(self.surfaceActor)
+#        else:
+#            print("No valid surfaces found for reconstruction")
+#
+#
+#    def configSurface(self, surfacecfg):
+#        surface_color = surfacecfg.surface_color
+#        wireframe_color= surfacecfg.wireframe_color
+#        surface_opacity = surfacecfg.surface_opacity
+#        edge_thickness= surfacecfg.edge_thickness
+#        if hasattr(self.surfaceActor, 'GetProperty'):
+#            property = getattr(self.surfaceActor, 'GetProperty')()
+#            if self.surface and self.wireframe:
+#                property.SetColor(surface_color)
+#                property.SetOpacity(surface_opacity)
+#                property.SetEdgeVisibility(True)
+#                property.SetEdgeColor(wireframe_color)
+#                property.SetLineWidth(edge_thickness)
+#                property.SetRepresentationToSurface()
+#            elif self.surface and not self.wireframe:
+#                property.SetColor(surface_color)
+#                property.SetOpacity(surface_opacity)
+#                property.SetEdgeVisibility(False)
+#                property.SetEdgeColor(wireframe_color)
+#                property.SetLineWidth(edge_thickness)
+#                property.SetRepresentationToSurface()
+#            elif not self.surface and self.wireframe:
+#                surface_color = wireframe_color
+#                property.SetColor(surface_color)
+#                property.SetOpacity(surface_opacity)
+#                property.SetEdgeVisibility(True)
+#                property.SetEdgeColor(wireframe_color)
+#                property.SetLineWidth(edge_thickness)
+#                property.SetRepresentationToWireframe()

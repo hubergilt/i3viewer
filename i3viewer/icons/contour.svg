@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="30 30 140 140">
+  <!-- Spherical wireframe with contour curves -->
+  <g stroke="#333" stroke-width="0.8" fill="none" transform="translate(100,100)">
+    
+    <!-- Contour curves - horizontal latitude lines -->
+    <ellipse cx="0" cy="-45" rx="45" ry="12" opacity="0.9" stroke="#55ACEE" stroke-width="4" />
+    <ellipse cx="0" cy="-25" rx="60" ry="16" opacity="0.9" stroke="#55ACEE" stroke-width="4" />
+    <ellipse cx="0" cy="0" rx="70" ry="18" opacity="1.0" stroke="#55ACEE" stroke-width="4" />
+    <ellipse cx="0" cy="25" rx="60" ry="16" opacity="0.9" stroke="#55ACEE" stroke-width="4" />
+    <ellipse cx="0" cy="45" rx="45" ry="12" opacity="0.9" stroke="#55ACEE" stroke-width="4" />
+    
+    <!-- Contour curves - vertical longitude lines -->
+    <path d="M0,-70 Q20,-50 35,-25 Q50,0 35,25 Q20,50 0,70" opacity="0.8" stroke="#55ACEE" stroke-width="1.8" />
+    <path d="M0,-70 Q-20,-50 -35,-25 Q-50,0 -35,25 Q-20,50 0,70" opacity="0.8" stroke="#55ACEE" stroke-width="1.8" />
+    <path d="M0,-70 Q35,-45 60,-15 Q70,0 60,15 Q35,45 0,70" opacity="0.7" stroke="#55ACEE" stroke-width="1.6" />
+    <path d="M0,-70 Q-35,-45 -60,-15 Q-70,0 -60,15 Q-35,45 0,70" opacity="0.7" stroke="#55ACEE" stroke-width="1.6" />
+        
+  </g>
+</svg>
