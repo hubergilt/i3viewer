@@ -1,5 +1,6 @@
 from PySide6.QtWidgets import QDialog, QTableWidget
 
+from i3viewer.i3enums import Params
 from i3viewer.i3helpDialog import \
     Ui_Dialog  # Import the generated UI class for points
 
@@ -13,7 +14,7 @@ class HelpDialog(QDialog, Ui_Dialog):
         self.ui.setupUi(self)
 
         # Customize the dialog (non-modal specific settings)
-        self.setWindowTitle("i3dViewer - Help Dialog")
+        self.setWindowTitle(f"{Params.ApplicationName.value} - Help Dialog")
         self.setMinimumSize(600, 300)
 
         # Configure table

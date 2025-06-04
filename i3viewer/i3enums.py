@@ -1,5 +1,7 @@
 from enum import Enum
+
 import vtk
+
 
 class LUT:
     lut = vtk.vtkLookupTable()
@@ -11,7 +13,10 @@ class LUT:
         self.lut.SetValueRange(1.0, 1.0)  # Full brightness
         self.lut.SetHueRange(0.667, 0.0)  # Blue to red
 
+
 class Params(Enum):
+    # ApplicationName = "i3dViewer"
+    ApplicationName = "MPROUTER 3D Viewer"
     PolylineDefaultWidth = 2.0
     PolylineSelectedWidth = 5.0
     PolylineMinWidth = 2.0

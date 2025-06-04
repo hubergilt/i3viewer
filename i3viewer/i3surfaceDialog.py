@@ -24,7 +24,7 @@ class Ui_Dialog(object):
     def setupUi(self, Dialog):
         if not Dialog.objectName():
             Dialog.setObjectName(u"Dialog")
-        Dialog.resize(467, 577)
+        Dialog.resize(467, 625)
         self.verticalLayout_2 = QVBoxLayout(Dialog)
         self.verticalLayout_2.setObjectName(u"verticalLayout_2")
         self.tabWidget = QTabWidget(Dialog)
@@ -230,13 +230,39 @@ class Ui_Dialog(object):
 
         self.verticalLayout_9.addWidget(self.groupBox_4)
 
-
-        self.verticalLayout_10.addWidget(self.frame_15)
-
-        self.label_2 = QLabel(self.tab_3)
+        self.groupBox_2 = QGroupBox(self.frame_15)
+        self.groupBox_2.setObjectName(u"groupBox_2")
+        self.horizontalLayout_21 = QHBoxLayout(self.groupBox_2)
+        self.horizontalLayout_21.setObjectName(u"horizontalLayout_21")
+        self.label_2 = QLabel(self.groupBox_2)
         self.label_2.setObjectName(u"label_2")
 
-        self.verticalLayout_10.addWidget(self.label_2)
+        self.horizontalLayout_21.addWidget(self.label_2)
+
+        self.frameContour = QFrame(self.groupBox_2)
+        self.frameContour.setObjectName(u"frameContour")
+        self.frameContour.setFrameShape(QFrame.StyledPanel)
+        self.frameContour.setFrameShadow(QFrame.Raised)
+        self.horizontalLayout_22 = QHBoxLayout(self.frameContour)
+        self.horizontalLayout_22.setObjectName(u"horizontalLayout_22")
+        self.labelContour = QLabel(self.frameContour)
+        self.labelContour.setObjectName(u"labelContour")
+
+        self.horizontalLayout_22.addWidget(self.labelContour)
+
+
+        self.horizontalLayout_21.addWidget(self.frameContour)
+
+        self.pushButtonContour = QPushButton(self.groupBox_2)
+        self.pushButtonContour.setObjectName(u"pushButtonContour")
+
+        self.horizontalLayout_21.addWidget(self.pushButtonContour)
+
+
+        self.verticalLayout_9.addWidget(self.groupBox_2)
+
+
+        self.verticalLayout_10.addWidget(self.frame_15)
 
         self.tabWidget.addTab(self.tab_3, "")
         self.tab_4 = QWidget()
@@ -541,6 +567,16 @@ class Ui_Dialog(object):
 
         self.verticalLayout_14.addWidget(self.frame_14)
 
+        self.label_4 = QLabel(self.frame_13)
+        self.label_4.setObjectName(u"label_4")
+
+        self.verticalLayout_14.addWidget(self.label_4)
+
+        self.label_3 = QLabel(self.frame_13)
+        self.label_3.setObjectName(u"label_3")
+
+        self.verticalLayout_14.addWidget(self.label_3)
+
 
         self.verticalLayout_11.addWidget(self.frame_13)
 
@@ -597,7 +633,9 @@ class Ui_Dialog(object):
         self.labelThicknessMin.setText(QCoreApplication.translate("Dialog", u"min:0", None))
         self.labelThicknessValue.setText(QCoreApplication.translate("Dialog", u"value:50", None))
         self.labelThicknessMax.setText(QCoreApplication.translate("Dialog", u"max:100", None))
-        self.label_2.setText("")
+        self.label_2.setText(QCoreApplication.translate("Dialog", u"Contour Color:", None))
+        self.labelContour.setText(QCoreApplication.translate("Dialog", u"TextLabel", None))
+        self.pushButtonContour.setText(QCoreApplication.translate("Dialog", u"Contour Color...", None))
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.tab_3), QCoreApplication.translate("Dialog", u"Surface Appearance", None))
         self.label_12.setText(QCoreApplication.translate("Dialog", u"<html><head/><body><p><span style=\" font-weight:600;\">Configure Delaunay Surface Reconstruction Parameters:</span></p></body></html>", None))
         self.label_38.setText(QCoreApplication.translate("Dialog", u"Profiles:", None))
@@ -633,6 +671,8 @@ class Ui_Dialog(object):
         self.comboBoxPlane.setItemText(2, QCoreApplication.translate("Dialog", u"YZ Plane", None))
         self.comboBoxPlane.setItemText(3, QCoreApplication.translate("Dialog", u"XZ Plane", None))
 
+        self.label_4.setText("")
+        self.label_3.setText("")
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.tab_4), QCoreApplication.translate("Dialog", u"Surface Reconstruction", None))
         self.pushButtonAccept.setText(QCoreApplication.translate("Dialog", u"Accept", None))
         self.pushButtonReject.setText(QCoreApplication.translate("Dialog", u"Cancel", None))

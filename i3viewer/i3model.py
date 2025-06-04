@@ -25,6 +25,7 @@ class i3model:
         self.pointlabel_id = 1
 
         self.actors = []
+        self.contourColor = []
 
     def RemoveAllActors(self):
         self.polylines = {}
@@ -548,7 +549,10 @@ class i3model:
         self.actors = []
 
         # Generate and store a random color for this polyline
-        color = [random.randint(0, 255) / 255.0 for _ in range(3)]
+        if self.contourColor:
+            color = self.contourColor
+        else:
+            color = [random.randint(0, 255) / 255.0 for _ in range(3)]
 
         for surface_id, vertices in self.surfaces.items():
             actor = self.surfaces_create_actor(surface_id, vertices, color)

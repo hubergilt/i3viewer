@@ -1,4 +1,4 @@
-!define APP_NAME "3dviewer"
+!define APP_NAME "MPROUTER_3D_Viewer"
 !define APP_VERSION "1.0"
 !define INSTALL_DIR "$PROGRAMFILES64\${APP_NAME}"
 !define EXE_NAME "3dviewer.exe"

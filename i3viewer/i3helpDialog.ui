@@ -148,7 +148,97 @@
       </property>
       <property name="icon">
        <iconset resource="icons.qrc">
+        <normaloff>:/icons/heatmapcfg.svg</normaloff>:/icons/heatmapcfg.svg</iconset>
+      </property>
+     </row>
+     <row>
+      <property name="text">
+       <string/>
+      </property>
+      <property name="icon">
+       <iconset resource="icons.qrc">
         <normaloff>:/icons/heatmap.svg</normaloff>:/icons/heatmap.svg</iconset>
+      </property>
+     </row>
+     <row>
+      <property name="text">
+       <string/>
+      </property>
+      <property name="icon">
+       <iconset resource="icons.qrc">
+        <normaloff>:/icons/backward.svg</normaloff>:/icons/backward.svg</iconset>
+      </property>
+     </row>
+     <row>
+      <property name="text">
+       <string/>
+      </property>
+      <property name="icon">
+       <iconset resource="icons.qrc">
+        <normaloff>:/icons/forward.svg</normaloff>:/icons/forward.svg</iconset>
+      </property>
+     </row>
+     <row>
+      <property name="text">
+       <string/>
+      </property>
+      <property name="icon">
+       <iconset resource="icons.qrc">
+        <normaloff>:/icons/unpick.svg</normaloff>:/icons/unpick.svg</iconset>
+      </property>
+     </row>
+     <row>
+      <property name="text">
+       <string/>
+      </property>
+      <property name="icon">
+       <iconset resource="icons.qrc">
+        <normaloff>:/icons/polyabc.svg</normaloff>:/icons/polyabc.svg</iconset>
+      </property>
+     </row>
+     <row>
+      <property name="text">
+       <string/>
+      </property>
+      <property name="icon">
+       <iconset resource="icons.qrc">
+        <normaloff>:/icons/pointabc.svg</normaloff>:/icons/pointabc.svg</iconset>
+      </property>
+     </row>
+     <row>
+      <property name="text">
+       <string/>
+      </property>
+      <property name="icon">
+       <iconset resource="icons.qrc">
+        <normaloff>:/icons/contour.svg</normaloff>:/icons/contour.svg</iconset>
+      </property>
+     </row>
+     <row>
+      <property name="text">
+       <string/>
+      </property>
+      <property name="icon">
+       <iconset resource="icons.qrc">
+        <normaloff>:/icons/surface.svg</normaloff>:/icons/surface.svg</iconset>
+      </property>
+     </row>
+     <row>
+      <property name="text">
+       <string/>
+      </property>
+      <property name="icon">
+       <iconset resource="icons.qrc">
+        <normaloff>:/icons/wireframe.svg</normaloff>:/icons/wireframe.svg</iconset>
+      </property>
+     </row>
+     <row>
+      <property name="text">
+       <string/>
+      </property>
+      <property name="icon">
+       <iconset resource="icons.qrc">
+        <normaloff>:/icons/surfacecfg.svg</normaloff>:/icons/surfacecfg.svg</iconset>
       </property>
      </row>
      <column>
@@ -158,7 +248,7 @@
      </column>
      <item row="0" column="0">
       <property name="text">
-       <string>Use to open a new file (e.g., xyz, srg, and db formats).</string>
+       <string>Use to open a new file (e.g., XYZ and CSV for polylines, SRG for nodes, XYZS for surfaces, and DB for all formats).</string>
       </property>
       <property name="textAlignment">
        <set>AlignJustify|AlignVCenter</set>
@@ -166,17 +256,17 @@
      </item>
      <item row="1" column="0">
       <property name="text">
-       <string>Append a file (e.g., XYZ and SRG formats) to an existing open file.</string>
+       <string>Append a file (e.g., XYZ and CSV for polylines, SRG for nodes, and XYZS for surface formats) to an existing open file.</string>
       </property>
      </item>
      <item row="2" column="0">
       <property name="text">
-       <string>Close all opened files and clean the viewer and tables.</string>
+       <string>Close all opened files and clean the viewer and tables for the current workspace for all supported format files.</string>
       </property>
      </item>
      <item row="3" column="0">
       <property name="text">
-       <string>Export the opened files (e.g., XYZ and SRG formats) to a database file.</string>
+       <string>Export the opened files (e.g., XYZ and CSV for polylines, SRG for nodes, and XYZS for surfaces formats) to DB for the database.</string>
       </property>
      </item>
      <item row="4" column="0">
@@ -231,7 +321,57 @@
      </item>
      <item row="14" column="0">
       <property name="text">
-       <string>Show a heatmap of the current database polylines loaded using the rainbow color palette.</string>
+       <string>Open the Configure Heatmap dialog to import the routes TXT file and the tonnes CSV file into the database.</string>
+      </property>
+     </item>
+     <item row="15" column="0">
+      <property name="text">
+       <string>Active the heatmap tool showing the initial view at period 01 using the rainbow color palette.</string>
+      </property>
+     </item>
+     <item row="16" column="0">
+      <property name="text">
+       <string>Backward the current heatmap view to the previous one view if it is the first period then it shows the last period.</string>
+      </property>
+     </item>
+     <item row="17" column="0">
+      <property name="text">
+       <string>Forward the current heatmap view to the next one view if it is the last period then it shows the first period.</string>
+      </property>
+     </item>
+     <item row="18" column="0">
+      <property name="text">
+       <string>Disable the default selection mode to pick polylines and points Dialogs that helps to navigate in the current view.</string>
+      </property>
+     </item>
+     <item row="19" column="0">
+      <property name="text">
+       <string>Active or Disable the current label text for the polylines with the polyline name or route name with the tonnes value.</string>
+      </property>
+     </item>
+     <item row="20" column="0">
+      <property name="text">
+       <string>Active or Disable the current label text for the points with the point name in the current view.</string>
+      </property>
+     </item>
+     <item row="21" column="0">
+      <property name="text">
+       <string>Active or Disable the current contour lines in the current view.</string>
+      </property>
+     </item>
+     <item row="22" column="0">
+      <property name="text">
+       <string>Active or Disable the current surface reconstruction in the current view.</string>
+      </property>
+     </item>
+     <item row="23" column="0">
+      <property name="text">
+       <string>Active or Disable the current wireframe reconstruction in the current view.</string>
+      </property>
+     </item>
+     <item row="24" column="0">
+      <property name="text">
+       <string>Custom the values (e.g. Color,Width, and etc.) for the contour lines, surface, wireframes reconstruction in the current view.</string>
       </property>
      </item>
     </widget>

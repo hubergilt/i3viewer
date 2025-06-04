@@ -1,5 +1,7 @@
 <RCC>
   <qresource prefix="/">
+    <file>icons/minsys.png</file>
+    <file>icons/3dviewer.ico</file>
     <file>icons/contour.svg</file>
     <file>icons/xyzs.svg</file>
     <file>icons/polyabc.svg</file>
@@ -15,7 +17,6 @@
     <file>icons/backward.svg</file>
     <file>icons/wireframe.svg</file>
     <file>icons/heatmap.svg</file>
-    <file>icons/3dviewer.ico</file>
     <file>icons/minus.svg</file>
     <file>icons/plus.svg</file>
     <file>icons/srg.svg</file>

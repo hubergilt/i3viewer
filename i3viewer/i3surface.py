@@ -7,21 +7,23 @@ from i3viewer.i3enums import (DelaunayCfg, DelaunayProfile, ProjectionPlane,
                               SurfaceCfg, SurfaceProfile)
 from i3viewer.i3surfaceDialog import \
     Ui_Dialog  # Import the generated UI class for surface
+from i3viewer.i3enums import Params
 
 
 class SurfaceDialog(QDialog, Ui_Dialog):
 
-    def __init__(self, parent=None, surfacecfg=SurfaceCfg(), delaunaycfg=DelaunayCfg()):
+    def __init__(self, parent=None, contour_color=None, surfacecfg=SurfaceCfg(), delaunaycfg=DelaunayCfg()):
         super().__init__(parent)
         # Set up the user interface from Designer
         self.ui = Ui_Dialog()
         self.ui.setupUi(self)
 
         # Customize the dialog (modal specific settings)
-        self.setWindowTitle("i3dViewer - Surface Dialog")
+        self.setWindowTitle(f"{Params.ApplicationName.value} - Surface Dialog")
 
         self.surfacecfg = surfacecfg
         self.delaunaycfg = delaunaycfg
+        self.contour_color = contour_color
 
         # Configure frame colors
         self.update_current_colors()
@@ -31,8 +33,8 @@ class SurfaceDialog(QDialog, Ui_Dialog):
 
         # Connect signals to slots
         self.ui.pushButtonSurface.clicked.connect(self.surface_color_dialog)
-        self.ui.pushButtonWireframe.clicked.connect(
-            self.wireframe_color_dialog)
+        self.ui.pushButtonWireframe.clicked.connect(self.wireframe_color_dialog)
+        self.ui.pushButtonContour.clicked.connect(self.contour_color_dialog)
 
         # Update radio button selection
         self.ui.radioButtonProfile.toggled.connect(self.update_selection_color)
@@ -90,10 +92,12 @@ class SurfaceDialog(QDialog, Ui_Dialog):
         # Save frame colors
         settings.setValue("frameSurfaceColor", self.surfaceColor.name())
         settings.setValue("frameWireframeColor", self.wireframeColor.name())
+        settings.setValue("frameContourColor", self.contourColor.name())
 
         # Save label texts
         settings.setValue("labelSurfaceText", self.ui.labelSurface.text())
         settings.setValue("labelWireframeText", self.ui.labelWireframe.text())
+        settings.setValue("labelContourText", self.ui.labelContour.text())
 
         # Save slider values
         settings.setValue("sliderOpacity", self.ui.horizontalSliderOpacity.value())
@@ -147,8 +151,10 @@ class SurfaceDialog(QDialog, Ui_Dialog):
         # Restore frame colors
         surface_color = QColor(get_setting("frameSurfaceColor", "#ffffff", str))
         wireframe_color = QColor(get_setting("frameWireframeColor", "#ffffff", str))
+        contour_color = QColor(get_setting("frameContourColor", "#ffffff", str))
         self.surfaceColor = surface_color
         self.wireframeColor = wireframe_color
+        self.contourColor = contour_color
 
         # Update frame colors in UI
         palette = self.ui.frameSurface.palette()
@@ -163,11 +169,19 @@ class SurfaceDialog(QDialog, Ui_Dialog):
         self.ui.frameWireframe.setPalette(palette)
         self.ui.frameWireframe.setAutoFillBackground(True)
 
+        palette = self.ui.frameWireframe.palette()
+        if hasattr(QPalette, "Window"):
+            palette.setColor(getattr(QPalette, "Window"), contour_color)
+        self.ui.frameContour.setPalette(palette)
+        self.ui.frameContour.setAutoFillBackground(True)
+
         # Restore label texts
         self.ui.labelSurface.setText(
             get_setting("labelSurfaceText", surface_color.name().upper(), str))
         self.ui.labelWireframe.setText(
             get_setting("labelWireframeText", wireframe_color.name().upper(), str))
+        self.ui.labelContour.setText(
+            get_setting("labelContourText", contour_color.name().upper(), str))
 
         # Restore slider values
         self.ui.horizontalSliderOpacity.setValue(
@@ -245,6 +259,14 @@ class SurfaceDialog(QDialog, Ui_Dialog):
             self.wireframeColor = color
             self.update_wireframe_color()
 
+    def contour_color_dialog(self):
+        color = QColorDialog.getColor(
+            self.contourColor, self, "Select Contour Color"
+        )
+        if color.isValid():
+            self.contourColor = color
+            self.update_contour_color()
+
     def update_surface_color(self):
         palette = self.ui.frameSurface.palette()
         if hasattr(QPalette, "Window"):
@@ -272,6 +294,19 @@ class SurfaceDialog(QDialog, Ui_Dialog):
             g = self.wireframeColor.greenF()
             b = self.wireframeColor.blueF()
             self.surfacecfg.wireframe_color = [r, g, b]
+
+    def update_contour_color(self):
+        palette = self.ui.frameContour.palette()
+        if hasattr(QPalette, "Window"):
+            palette.setColor(getattr(QPalette, "Window"), self.contourColor)
+        self.ui.frameContour.setPalette(palette)
+        self.ui.frameContour.setAutoFillBackground(True)
+        self.ui.labelContour.setText(self.contourColor.name().upper())
+
+        r = self.contourColor.redF()
+        g = self.contourColor.greenF()
+        b = self.contourColor.blueF()
+        self.contour_color = [r, g, b]
 
     def configureSliders(self):
 
@@ -423,8 +458,10 @@ class SurfaceDialog(QDialog, Ui_Dialog):
     def update_current_colors(self):
         self.surfaceColor = self.convert_qcolor(self.surfacecfg.surface_color)
         self.wireframeColor = self.convert_qcolor(self.surfacecfg.wireframe_color)
+        self.contourColor = self.convert_qcolor(self.contour_color)
         self.update_surface_color()
         self.update_wireframe_color()
+        self.update_contour_color()
 
     def update_selection_sprofile(self, index):
         if index == SurfaceProfile.DEFAULT.value:

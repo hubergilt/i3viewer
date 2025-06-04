@@ -2,6 +2,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QDialog, QFileDialog, QMessageBox
 
+from i3viewer.i3enums import Params
 from i3viewer.i3heatmapDialog import \
     Ui_Dialog  # Import the generated UI class for heatmap
 
@@ -16,7 +17,7 @@ class HeatMapDialog(QDialog, Ui_Dialog):
         self.model = model
 
         # Customize the dialog (non-modal specific settings)
-        self.setWindowTitle("i3dViewer - HeatMap Dialog")
+        self.setWindowTitle(f"{Params.ApplicationName.value} - HeatMap Dialog")
         if hasattr(Qt, "RightToLeft"):
             self.ui.pushButton.setLayoutDirection(
                 getattr(Qt, "RightToLeft")

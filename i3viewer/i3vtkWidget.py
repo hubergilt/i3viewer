@@ -32,6 +32,9 @@ class i3vtkWidget(QWidget):
         self.surface = False
         self.wireframe = False
         self.scalarBarActor = vtk.vtkScalarBarActor()
+        self.contour_color = []
+        self.delaunaycfg = DelaunayCfg()
+        self.surfacecfg = SurfaceCfg()
 
         if self.Parent == None:
             self.resize(500, 500)
@@ -41,10 +44,11 @@ class i3vtkWidget(QWidget):
         self.ShowEdges = False
         self.SetupWnd()
 
-    def import_file(self, file_path, fileType, newFile=True):
+    def import_file(self, file_path, fileType, newFile):
 
         if self.model is None:
             self.model = i3model(file_path)
+            self.model.contourColor = self.contour_color
         else:
             self.model.file_path = file_path
 
@@ -55,6 +59,10 @@ class i3vtkWidget(QWidget):
             self.model.polyline_id = 1
             self.model.point_id = 1
             self.model.surface_id = 1
+
+        if self.delaunaycfg and self.surfacecfg:
+            cfg = self.delaunaycfg, self.surfacecfg
+        else:
             cfg = DelaunayCfg(), SurfaceCfg()
 
         if fileType == FileType.DB:
@@ -749,6 +757,12 @@ class i3vtkWidget(QWidget):
         for actor in self.surfaceActors:
             self.RemoveActor(actor)
 
+    def UpdateColorSurfaceActors(self, color):
+        for actor in self.surfaceActors:
+            if hasattr(actor, 'GetProperty'):
+                property = getattr(actor, 'GetProperty')()
+                property.SetColor(color)
+
     def wireframe_reconstruction_actor(self, fileType, delaunaycfg, surfacecfg):
         if not self.model:
             return
@@ -777,8 +791,8 @@ class i3vtkWidget(QWidget):
         if self.wireframeActor:
             self.RemoveActor(self.wireframeActor)
 
-    def UpdateSurface(self, fileType, delaunaycfg, surfacecfg):
-        cfg = delaunaycfg, surfacecfg
+    def UpdateSurface(self, fileType):
+        cfg = self.delaunaycfg, self.surfacecfg
 
         self.RemoveSurfaceActor()
         self.RemoveWireframeActor()
@@ -791,94 +805,3 @@ class i3vtkWidget(QWidget):
         self.AddSurfaceActor()
         if self.wireframe:
             self.AddWireframeActor()
-
-#    def OnSurfaceReconstruction(self, enable, fileType, surfacecfg, delaunaycfg):
-#        if not self.model:
-#            return
-#        if self.ValidSurfaces():
-#            if enable:
-#                self.reconstruction_surface_actor(fileType, delaunaycfg)
-#                self.AddSurfaceActor()
-#            else:
-#                if not self.wireframe:
-#                    self.RemoveSurfaceActor()
-#            self.configSurface(surfacecfg)
-#            self.UpdateView(False)
-#
-#    def OnWireframeReconstruction(self, enable, fileType, surfacecfg, delaunaycfg):
-#        if not self.model:
-#            return
-#        if self.ValidSurfaces():
-#            if enable:
-#                self.reconstruction_surface_actor(fileType, delaunaycfg)
-#                self.AddSurfaceActor()
-#            else:
-#                if not self.surface:
-#                    self.RemoveSurfaceActor()
-#            self.configSurface(surfacecfg)
-#            self.UpdateView(False)
-#
-#    def reconstruction_surface_actor(self, fileType, delaunaycfg):
-#        if not self.model:
-#            return
-#        if self.surfaceActor:
-#            self.RemoveActor(self.surfaceActor)
-#
-#        # Create a vtkAppendPolyData to combine all contour lines
-#        append_contours = vtk.vtkAppendPolyData()
-#
-#        # Track if we have any valid surfaces to process
-#        valid_surfaces_found = False
-#
-#        # Create contours at different surface elevations
-#        for surface_id, _ in self.model.surfaces.items():
-#            actor = self.surfaces_get_actor(surface_id)
-#            if actor:
-#                mapper = actor.GetMapper()
-#                if mapper:
-#                    polyData = mapper.GetInput()
-#                    if polyData and polyData.GetNumberOfPoints() > 0:
-#                        if fileType == FileType.XYZS or fileType == FileType.DB:
-#                            append_contours.AddInputData(polyData)
-#                            valid_surfaces_found = True
-#
-#        # Only proceed if we found valid surfaces to process
-#        if valid_surfaces_found:
-#            append_contours.Update()
-#            contour_polydata = append_contours.GetOutput()
-#            self.surfaceActor = self.model.surface_reconstruction_actor(contour_polydata, delaunaycfg)
-#            if self.surfaceActor:
-#                self.AddActor(self.surfaceActor)
-#        else:
-#            print("No valid surfaces found for reconstruction")
-#
-#
-#    def configSurface(self, surfacecfg):
-#        surface_color = surfacecfg.surface_color
-#        wireframe_color= surfacecfg.wireframe_color
-#        surface_opacity = surfacecfg.surface_opacity
-#        edge_thickness= surfacecfg.edge_thickness
-#        if hasattr(self.surfaceActor, 'GetProperty'):
-#            property = getattr(self.surfaceActor, 'GetProperty')()
-#            if self.surface and self.wireframe:
-#                property.SetColor(surface_color)
-#                property.SetOpacity(surface_opacity)
-#                property.SetEdgeVisibility(True)
-#                property.SetEdgeColor(wireframe_color)
-#                property.SetLineWidth(edge_thickness)
-#                property.SetRepresentationToSurface()
-#            elif self.surface and not self.wireframe:
-#                property.SetColor(surface_color)
-#                property.SetOpacity(surface_opacity)
-#                property.SetEdgeVisibility(False)
-#                property.SetEdgeColor(wireframe_color)
-#                property.SetLineWidth(edge_thickness)
-#                property.SetRepresentationToSurface()
-#            elif not self.surface and self.wireframe:
-#                surface_color = wireframe_color
-#                property.SetColor(surface_color)
-#                property.SetOpacity(surface_opacity)
-#                property.SetEdgeVisibility(True)
-#                property.SetEdgeColor(wireframe_color)
-#                property.SetLineWidth(edge_thickness)
-#                property.SetRepresentationToWireframe()

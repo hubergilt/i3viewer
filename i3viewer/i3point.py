@@ -1,6 +1,7 @@
 from PySide6.QtCore import QSettings, Qt, Signal
 from PySide6.QtWidgets import QDialog
 
+from i3viewer.i3enums import Params
 from i3viewer.i3pointDialog import \
     Ui_Dialog  # Import the generated UI class for points
 
@@ -12,7 +13,8 @@ class NonModalDialog(QDialog, Ui_Dialog):
     def __init__(self, point_id, x, y, z, name):
         super().__init__()
         self.setupUi(self)  # Set up the UI from the generated class
-        self.setWindowTitle("i3dViewer - Point Attributes")
+        self.setWindowTitle(
+            f"{Params.ApplicationName.value} - Point Attributes")
 
         # Ensure the dialog stays on top of the main window
         if getattr(Qt, "WindowStaysOnTopHint"):

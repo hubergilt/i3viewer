@@ -3,7 +3,7 @@ from PySide6.QtWidgets import QDialog, QTableWidget, QTableWidgetItem
 
 from i3viewer.i3polylineDialog import \
     Ui_Dialog  # Import the generated UI class
-
+from i3viewer.i3enums import Params
 
 class NonModalDialog(QDialog, Ui_Dialog):
     # Define a custom signal to emit when the dialog is closed
@@ -12,7 +12,7 @@ class NonModalDialog(QDialog, Ui_Dialog):
     def __init__(self, polyline_id, num_points, length, points):
         super().__init__()
         self.setupUi(self)  # Set up the UI from the generated class
-        self.setWindowTitle("i3dViewer - Polyline Attributes")
+        self.setWindowTitle(f"{Params.ApplicationName.value} - Polyline Attributes")
 
         # Ensure the dialog stays on top of the main window
         if hasattr(Qt, "WindowStaysOnTopHint"):

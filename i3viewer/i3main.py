@@ -10,18 +10,19 @@ from PySide6.QtGui import QStandardItem, QStandardItemModel, QIcon
 
 from i3viewer.i3mainWindow import Ui_mainWindow  # Import the generated UI class
 from i3viewer.i3help import HelpDialog
+from i3viewer.i3about import AboutDialog
 from i3viewer.i3heatmap import HeatMapDialog
 from i3viewer.i3surface import SurfaceDialog
-from i3viewer.i3enums import DelaunayCfg, FileType, HeatMapCfg, SurfaceCfg
+from i3viewer.i3enums import DelaunayCfg, FileType, HeatMapCfg, SurfaceCfg, Params
 
 class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
     def __init__(self):
         super().__init__()
 
-        self.setWindowTitle("Interactive 3D Model Viewer")
-
         # Set up the UI from the generated file
         self.setupUi(self)
+
+        self.setWindowTitle(f"{Params.ApplicationName.value}")
 
         # Initialize VTK
         self.vtkWidget = self.qvtkWidget  # Use the i3vtkWidget from the UI
@@ -54,6 +55,16 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         self.maxPeriod = 12
 
         # initial setup for surface appearance
+        self.config_init_surface()
+
+        if hasattr(Qt, "CustomContextMenu"):
+            self.treeView.setContextMenuPolicy(getattr(Qt, "CustomContextMenu"))
+
+        self.treeView.customContextMenuRequested.connect(self.on_context_menu)
+        self.tabWidget.currentChanged.connect(self.on_tab_changed)
+
+    def config_init_surface(self):
+        # initial setup for surface appearance
         self.surfacecfg = SurfaceCfg()
         # Generate and store a random colors for wireframe
         self.surfacecfg.surface_color = [random.randint(0, 255) / 255.0 for _ in range(3)]
@@ -62,11 +73,15 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         # initial setup for surface appearance
         self.delaunaycfg = DelaunayCfg()
 
-        if hasattr(Qt, "CustomContextMenu"):
-            self.treeView.setContextMenuPolicy(getattr(Qt, "CustomContextMenu"))
+        # initial random color for contour
+        self.contour_color = [random.randint(0, 255) / 255.0 for _ in range(3)]
+        self.config_surface()
 
-        self.treeView.customContextMenuRequested.connect(self.on_context_menu)
-        self.tabWidget.currentChanged.connect(self.on_tab_changed)
+    def config_surface(self):
+        self.vtkWidget.delaunaycfg = self.delaunaycfg
+        self.vtkWidget.surfacecfg = self.surfacecfg
+        self.vtkWidget.contour_color = self.contour_color
+
 
     def connect_actions(self):
         """Connect UI actions to their respective functions."""
@@ -96,6 +111,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         self.actionSurface.triggered.connect(self.on_surface)
         self.actionWireframe.triggered.connect(self.on_wireframe)
         self.actionSurfaceCfg.triggered.connect(self.on_surface_cfg)
+        self.actionAbout.triggered.connect(self.on_about)
 
     def on_open_file(self):
         """Handle the 'Open File' action for open .xyz, .xyzs, .srg, .db files"""
@@ -326,26 +342,13 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
     def treeview_populate_surfaces(self, model, root_item):
         """Populates the tree view with surfaces."""
         if hasattr(model, 'surfaces'):
-
-#            surfaces=dict(sorted(model.surfaces.items())[self.surface_idx-1:])
-
             surface_root = QStandardItem("Surface")
             surface_root.setIcon(QIcon(u":/icons/polyline.svg"))
 
-#            for surface_id, points in surfaces.items():
-#                surface_item = QStandardItem(f"Polyline {surface_id}")
-#                surface_item.setIcon(QIcon(u":/icons/polyline.svg"))
-#                self.surface_idx += 1
-#                setattr(surface_item, "surface_id", surface_id)
-#
-#                for idx, (x, y, z, *_) in enumerate(points, start=1):
-#                    point_item = QStandardItem(
-#                        f"Point {idx} (X={x:.3f}, Y={y:.3f}, Z={z:.3f})"
-#                    )
-#                    point_item.setIcon(QIcon(u":/icons/point.svg"))
-#                    surface_item.appendRow(point_item)
-#
-#                surface_root.appendRow(surface_item)
+            surface_item = QStandardItem(f"Contours {len(model.surfaces)}")
+            surface_item.setIcon(QIcon(u":/icons/polyline.svg"))
+
+            surface_root.appendRow(surface_item)
             root_item.appendRow(surface_root)
 
     def on_clean_workspace(self):
@@ -730,6 +733,10 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
     def on_help(self):
         help = HelpDialog(self)
         help.show()
+
+    def on_about(self):
+        about = AboutDialog(self)
+        about.show()
 
     def on_front(self):
         if self.vtkWidget:
@@ -1131,26 +1138,6 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         self.vtkWidget.pointlabel = checked
         self.vtkWidget.OnPointLabels(checked, self.fileType)
 
-#    def on_surface_old(self, checked):
-#        """ Open a function to use surface reconstruction """
-#        # Cannot perform surface reconstruction operation
-#        if not self.vtkWidget.ValidSurfaces():
-#            if hasattr(QMessageBox, "Ok"):
-#                QMessageBox.information(
-#                    self,
-#                    "Surface Recontruction Dialog",
-#                    "Cannot perform Surface Reconstruction Operation, it only works with valid surface data",
-#                    getattr(QMessageBox, "Ok")
-#                )
-#            self.actionSurface.setChecked(False)
-#            return
-#
-#        model = self.vtkWidget.model
-#        if not model:
-#            return
-#        self.vtkWidget.surface = checked
-#        self.vtkWidget.OnSurfaceReconstruction(checked, self.fileType, self.surfacecfg, self.delaunaycfg)
-
     def on_contour(self, checked):
         """ Open a function to use surface reconstruction """
         # Cannot perform surface reconstruction operation
@@ -1171,25 +1158,6 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             else:
                 self.vtkWidget.RemoveSurfaceActors()
             self.vtkWidget.UpdateView(False)
-
-#    def on_wireframe_old(self, checked):
-#        """ Open a function to use surface reconstruction """
-#        # Cannot perform surface reconstruction operation
-#        if not self.vtkWidget.ValidSurfaces():
-#            if hasattr(QMessageBox, "Ok"):
-#                QMessageBox.information(
-#                    self,
-#                    "Surface Recontruction Dialog",
-#                    "Cannot perform Surface Reconstruction Operation, it only works with valid surface data",
-#                    getattr(QMessageBox, "Ok")
-#                )
-#            self.actionWireframe.setChecked(False)
-#            return
-#        model = self.vtkWidget.model
-#        if not model:
-#            return
-#        self.vtkWidget.wireframe = checked
-#        self.vtkWidget.OnWireframeReconstruction(checked, self.fileType, self.surfacecfg, self.delaunaycfg)
 
     def on_surface(self, checked):
         """ Open a function to use surface reconstruction """
@@ -1255,14 +1223,17 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             # Switch to the first tab of the tabWidget
             self.tabWidget.setCurrentIndex(0)  # Index 0 corresponds to the first tab
             #dialog = SurfaceDialog(self, self.surfacecfg, self.delaunaycfg)
-            dialog = SurfaceDialog(self)
+            dialog = SurfaceDialog(self, self.contour_color)
             result = dialog.exec()
             if hasattr(QDialog, "Accepted") and result == getattr(QDialog,"Accepted"):
                 self.delaunaycfg = dialog.delaunaycfg
                 self.surfacecfg = dialog.surfacecfg
-                cfg = self.delaunaycfg, self.surfacecfg
-                self.vtkWidget.UpdateSurface(self.fileType, *cfg)
+                self.contour_color = dialog.contour_color
+                self.config_surface()
+                self.vtkWidget.UpdateSurface(self.fileType)
+                self.vtkWidget.UpdateColorSurfaceActors(self.contour_color)
                 self.vtkWidget.UpdateView(False)
+                self.actionSurface.setChecked(True)
 
 def main():
     app = QtWidgets.QApplication(sys.argv)
