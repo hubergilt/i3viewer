@@ -880,11 +880,14 @@ class i3model:
         midpoint = [0.0, 0.0, 0.0]
         for i in range(1, n_points):
             if arc_lengths[i] >= half_length:
-                t = ((half_length - arc_lengths[i - 1]) /
-                     (arc_lengths[i] - arc_lengths[i - 1]))
+                denom = arc_lengths[i] - arc_lengths[i - 1]
                 p1 = points.GetPoint(idList.GetId(i - 1))
                 p2 = points.GetPoint(idList.GetId(i))
-                midpoint = [p1[j] + t * (p2[j] - p1[j]) for j in range(3)]
+                if denom == 0.0:
+                    midpoint = list(p1)
+                else:
+                    t = (half_length - arc_lengths[i - 1]) / denom
+                    midpoint = [p1[j] + t * (p2[j] - p1[j]) for j in range(3)]
                 break
 
         # Create label actor

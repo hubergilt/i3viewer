@@ -31,7 +31,8 @@ exe = EXE(
     debug=False,
     strip=False,
     upx=True,
-    console=False,  # Set to False for a GUI application
+    console=False,
+    icon='dist/3dviewer.ico',
 )
 
 coll = COLLECT(

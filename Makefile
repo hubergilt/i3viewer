@@ -42,7 +42,7 @@ wine:
 
 # Build using PyInstaller with cross-compilation
 build:
-	$(PYINSTALLER) --clean --onefile --name=$(TARGET_NAME).exe \
+	$(PYINSTALLER) --clean --onefile --noconsole --name=$(TARGET_NAME).exe \
 		--distpath=$(DIST_DIR) --workpath=$(BUILD_DIR) \
 		$(HIDDEN_IMPORTS) $(SOURCE_SCRIPT)
 

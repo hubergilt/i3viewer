@@ -8,3 +8,4 @@ docs
 .spyproject
 *.pyc
 *.exe
+*.log

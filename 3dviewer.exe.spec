@@ -2,11 +2,11 @@
 
 
 a = Analysis(
-    ['i3viewer\\i3main.py'],
+    ['i3viewer/i3main.py'],
     pathex=[],
     binaries=[],
     datas=[],
-    hiddenimports=['vtkmodules.util.data_model', 'vtkmodules.vtkCommonCore', 'vtkmodules.vtkRenderingOpenGL2', 'vtkmodules.vtkInteractionStyle', 'vtkmodules.vtkRenderingFreeType', 'vtkmodules.vtkIOGeometry', 'vtkmodules.util.execution_model', 'PySide6'],
+    hiddenimports=['vtkmodules.util.data_model', 'vtkmodules.vtkCommonCore', 'vtkmodules.vtkRenderingOpenGL2', 'vtkmodules.vtkInteractionStyle', 'vtkmodules.vtkRenderingFreeType', 'vtkmodules.vtkIOGeometry', 'vtkmodules.util.execution_model'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -32,7 +32,8 @@ exe = EXE(
     console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
-    target_arch='64',
+    target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon='dist/3dviewer.ico',
 )
