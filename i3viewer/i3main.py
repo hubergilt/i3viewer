@@ -183,8 +183,10 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             return
 
         self.vtkWidget.import_file(self.file_path, FileType.XYZS, newFile=openNew)
-        #self.vtkWidget.OnSurfaceReconstruction(True, self.fileType, self.surfacecfg, self.delaunaycfg)
+
         self.actionSurface.setChecked(True)
+        self.actionWireframe.setChecked(True)
+
         self.treeview_setup()
         self.tableview_release()
 
@@ -198,6 +200,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             return
 
         self.vtkWidget.import_file(self.file_path, FileType.SRG, newFile=openNew)
+
         self.treeview_setup()
         self.tableview_release()
 
@@ -212,9 +215,9 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
 
         self.vtkWidget.import_file(self.file_path, FileType.DB, newFile=True)
 
-        if self.vtkWidget and self.vtkWidget.model:
-            if self.vtkWidget.model.hasSurfacesTable():
-                self.actionSurface.setChecked(True)
+        if self.vtkWidget and self.vtkWidget.model and self.vtkWidget.model.hasSurfacesTable():
+            self.actionSurface.setChecked(True)
+            self.actionWireframe.setChecked(True)
 
         self.treeview_setup()
         self.tableview_release()
@@ -233,6 +236,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             return
 
         self.vtkWidget.import_file(self.file_path, FileType.CSV, newFile=openNew)
+
         self.treeview_setup()
         self.tableview_release()
 
@@ -1174,7 +1178,6 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             return
 
         if self.vtkWidget:
-            self.vtkWidget.surface = checked
             if checked:
                 self.vtkWidget.AddSurfaceActor()
             else:
@@ -1196,7 +1199,6 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             return
 
         if self.vtkWidget:
-            self.vtkWidget.wireframe = checked
             if checked:
                 self.vtkWidget.AddWireframeActor()
             else:

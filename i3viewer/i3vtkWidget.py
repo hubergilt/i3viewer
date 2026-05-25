@@ -29,8 +29,6 @@ class i3vtkWidget(QWidget):
         self.pointlabel = False
         self.surfaceActor = None
         self.wireframeActor = None
-        self.surface = False
-        self.wireframe = False
         self.scalarBarActor = vtk.vtkScalarBarActor()
         self.contour_color = []
         self.delaunaycfg = DelaunayCfg()
@@ -77,11 +75,13 @@ class i3vtkWidget(QWidget):
                 self.actors.extend(actors)
             if self.model.hasSurfacesTable():
                 actors = self.model.surfaces_format_actors(fileType)
-                #self.actors.extend(actors)
                 self.surfaceActors.extend(actors)
                 self.surfaceActor = self.surface_reconstruction_actor(fileType, *cfg)
-                self.actors.append(self.surfaceActor)
+                if self.surfaceActor:
+                    self.actors.append(self.surfaceActor)
                 self.wireframeActor = self.wireframe_reconstruction_actor(fileType, *cfg)
+                if self.wireframeActor:
+                    self.actors.append(self.wireframeActor)
         elif fileType == FileType.XYZ or fileType == FileType.CSV:
             actors = self.model.polylines_format_actors(fileType)
             self.actors.extend(actors)
@@ -92,12 +92,12 @@ class i3vtkWidget(QWidget):
             self.pointlabels_create_actors(fileType)
         elif fileType == FileType.XYZS:
             actors = self.model.surfaces_format_actors(fileType)
-            #self.actors.extend(actors)
             self.surfaceActors.extend(actors)
             self.surfaceActor = self.surface_reconstruction_actor(fileType, *cfg)
-            self.actors.append(self.surfaceActor)
+            if self.surfaceActor:
+                self.actors.append(self.surfaceActor)
             self.wireframeActor = self.wireframe_reconstruction_actor(fileType, *cfg)
-            if self.wireframe and self.wireframeActor:
+            if self.wireframeActor:
                 self.actors.append(self.wireframeActor)
         if self.actors:
             for actor in self.actors:
