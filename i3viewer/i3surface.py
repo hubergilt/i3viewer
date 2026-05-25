@@ -169,7 +169,7 @@ class SurfaceDialog(QDialog, Ui_Dialog):
         self.ui.frameWireframe.setPalette(palette)
         self.ui.frameWireframe.setAutoFillBackground(True)
 
-        palette = self.ui.frameWireframe.palette()
+        palette = self.ui.frameContour.palette()
         if hasattr(QPalette, "Window"):
             palette.setColor(getattr(QPalette, "Window"), contour_color)
         self.ui.frameContour.setPalette(palette)
@@ -229,6 +229,9 @@ class SurfaceDialog(QDialog, Ui_Dialog):
             ]
             self.surfacecfg.surface_opacity = self.ui.horizontalSliderOpacity.value() / 100
             self.surfacecfg.edge_thickness = self.ui.horizontalSliderThickness.value()
+
+        # Update contour color
+        self.update_contour_color()
 
         if self.delaunaycfg:
             self.delaunaycfg.cleaner_tolerance = self.ui.horizontalSliderCTolerance.value() / 100000
@@ -509,4 +512,3 @@ class SurfaceDialog(QDialog, Ui_Dialog):
         """Override reject to save settings before closing"""
         self.save_settings()
         super().reject()
-

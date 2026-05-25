@@ -59,6 +59,9 @@ class i3vtkWidget(QWidget):
             self.model.polyline_id = 1
             self.model.point_id = 1
             self.model.surface_id = 1
+        else:
+            self.RemoveSurfaceActor()
+            self.RemoveWireframeActor()
 
         if self.delaunaycfg and self.surfacecfg:
             cfg = self.delaunaycfg, self.surfacecfg
@@ -94,6 +97,8 @@ class i3vtkWidget(QWidget):
             self.surfaceActor = self.surface_reconstruction_actor(fileType, *cfg)
             self.actors.append(self.surfaceActor)
             self.wireframeActor = self.wireframe_reconstruction_actor(fileType, *cfg)
+            if self.wireframe and self.wireframeActor:
+                self.actors.append(self.wireframeActor)
         if self.actors:
             for actor in self.actors:
                 self.AddActor(actor)
@@ -134,6 +139,7 @@ class i3vtkWidget(QWidget):
         self.RemoveSurfaceActor()
         self.RemoveWireframeActor()
         self.RemoveScaleBarActor()
+        self.surfaceActors = []
         self.UpdateView()
         if self.model:
             self.model.RemoveAllActors()
@@ -795,13 +801,9 @@ class i3vtkWidget(QWidget):
         cfg = self.delaunaycfg, self.surfacecfg
 
         self.RemoveSurfaceActor()
-        self.RemoveWireframeActor()
-
         self.surfaceActor = self.surface_reconstruction_actor(fileType, *cfg)
-        self.wireframeActor = self.wireframe_reconstruction_actor(fileType, *cfg)
-
-        if self.surface:
-            self.AddSurfaceActor()
         self.AddSurfaceActor()
-        if self.wireframe:
-            self.AddWireframeActor()
+
+        self.RemoveWireframeActor()
+        self.wireframeActor = self.wireframe_reconstruction_actor(fileType, *cfg)
+        self.AddWireframeActor()

@@ -1222,8 +1222,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
                 return
             # Switch to the first tab of the tabWidget
             self.tabWidget.setCurrentIndex(0)  # Index 0 corresponds to the first tab
-            #dialog = SurfaceDialog(self, self.surfacecfg, self.delaunaycfg)
-            dialog = SurfaceDialog(self, self.contour_color)
+            dialog = SurfaceDialog(self, self.contour_color, self.surfacecfg, self.delaunaycfg)
             result = dialog.exec()
             if hasattr(QDialog, "Accepted") and result == getattr(QDialog,"Accepted"):
                 self.delaunaycfg = dialog.delaunaycfg
