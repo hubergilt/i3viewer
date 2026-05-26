@@ -10,47 +10,61 @@ from i3viewer.i3polyline import NonModalDialog as PolylineDialog
 
 
 class i3vtkWidget(QWidget):
+
+    # -------------------------------------------------------------------------
+    # Initialization
+    # -------------------------------------------------------------------------
+
     def __init__(self, parent=None):
         super().__init__(parent)
+
         self.Parent = parent
         self.renderer = None
         self.interactor = None
         self.picker = None
         self.model = None
+
         self.actors = []
-        self.surfaceActors = []
-        self.TrihedronPos = 1
+        self.contourActors = []
         self.selected_actor = None
-        self.polylineDialog = PolylineDialog(0, 0, 0, [])
-        self.pointDialog = PointDialog(0, 0, 0, 0, "")
+        self.surfaceActor = None
+        self.wireframeActor = None
+
+        self.TrihedronPos = 1
+        self.ShowEdges = False
         self.heatmap = False
         self.unpick = False
         self.polylabel = False
         self.pointlabel = False
-        self.surfaceActor = None
-        self.wireframeActor = None
+        self.surface = False
+        self.wireframe = False
+
         self.scalarBarActor = vtk.vtkScalarBarActor()
         self.contour_color = []
         self.delaunaycfg = DelaunayCfg()
         self.surfacecfg = SurfaceCfg()
 
-        if self.Parent == None:
+        self.polylineDialog = PolylineDialog(0, 0, 0, [])
+        self.pointDialog = PointDialog(0, 0, 0, 0, "")
+
+        if self.Parent is None:
             self.resize(500, 500)
         else:
             self.resize(self.Parent.size())
 
-        self.ShowEdges = False
         self.SetupWnd()
 
-    def import_file(self, file_path, fileType, newFile):
+    # -------------------------------------------------------------------------
+    # File Import
+    # -------------------------------------------------------------------------
 
+    def import_file(self, file_path, fileType, newFile):
         if self.model is None:
             self.model = i3model(file_path)
             self.model.contourColor = self.contour_color
         else:
             self.model.file_path = file_path
 
-        actors = []
         if newFile:
             self.RemoveAllActors()
             self.actors = []
@@ -58,112 +72,133 @@ class i3vtkWidget(QWidget):
             self.model.point_id = 1
             self.model.surface_id = 1
         else:
+            if self.surfaceActor and self.surfaceActor in self.actors:
+                self.actors.remove(self.surfaceActor)
+            if self.wireframeActor and self.wireframeActor in self.actors:
+                self.actors.remove(self.wireframeActor)
             self.RemoveSurfaceActor()
             self.RemoveWireframeActor()
 
-        if self.delaunaycfg and self.surfacecfg:
-            cfg = self.delaunaycfg, self.surfacecfg
-        else:
-            cfg = DelaunayCfg(), SurfaceCfg()
+        cfg = (self.delaunaycfg, self.surfacecfg) \
+            if (self.delaunaycfg and self.surfacecfg) \
+            else (DelaunayCfg(), SurfaceCfg())
 
         if fileType == FileType.DB:
             if self.model.hasPointsTable():
-                actors = self.model.points_format_actors(fileType)
-                self.actors.extend(actors)
+                self.actors.extend(self.model.points_format_actors(fileType))
             if self.model.hasPolylinesTable():
-                actors = self.model.polylines_format_actors(fileType)
-                self.actors.extend(actors)
+                self.actors.extend(self.model.polylines_format_actors(fileType))
             if self.model.hasSurfacesTable():
-                actors = self.model.surfaces_format_actors(fileType)
-                self.surfaceActors.extend(actors)
+                self.contourActors.extend(self.model.surfaces_format_actors(fileType))
                 self.surfaceActor = self.surface_reconstruction_actor(fileType, *cfg)
                 if self.surfaceActor:
                     self.actors.append(self.surfaceActor)
                 self.wireframeActor = self.wireframe_reconstruction_actor(fileType, *cfg)
                 if self.wireframeActor:
                     self.actors.append(self.wireframeActor)
-        elif fileType == FileType.XYZ or fileType == FileType.CSV:
-            actors = self.model.polylines_format_actors(fileType)
-            self.actors.extend(actors)
+
+        elif fileType in (FileType.XYZ, FileType.CSV):
+            self.actors.extend(self.model.polylines_format_actors(fileType))
             self.polylabels_create_actors(fileType)
+
         elif fileType == FileType.SRG:
-            actors = self.model.points_format_actors(fileType)
-            self.actors.extend(actors)
+            self.actors.extend(self.model.points_format_actors(fileType))
             self.pointlabels_create_actors(fileType)
+
         elif fileType == FileType.XYZS:
-            actors = self.model.surfaces_format_actors(fileType)
-            self.surfaceActors.extend(actors)
+            self.contourActors.extend(self.model.surfaces_format_actors(fileType))
             self.surfaceActor = self.surface_reconstruction_actor(fileType, *cfg)
             if self.surfaceActor:
                 self.actors.append(self.surfaceActor)
             self.wireframeActor = self.wireframe_reconstruction_actor(fileType, *cfg)
             if self.wireframeActor:
                 self.actors.append(self.wireframeActor)
-        if self.actors:
-            for actor in self.actors:
-                self.AddActor(actor)
+
+        for actor in self.actors:
+            self.AddActor(actor)
 
         self.UpdateView()
 
-    def polylines_update_data(self):
-        if self.model:
-            self.model.polylines_reread_table()
+    # -------------------------------------------------------------------------
+    # Actor Lookup
+    # -------------------------------------------------------------------------
 
     def polylines_get_actor(self, polyline_id):
-        """Returns the VTK actor associated with the given polyline_id, or None if not found."""
+        """Return the VTK actor for the given polyline_id, or None."""
         for actor in self.actors:
             if hasattr(actor, "polyline_id") and actor.polyline_id == polyline_id:
                 return actor
         return None
 
     def points_get_actor(self, point_id):
-        """Returns the VTK actor associated with the given point_id, or None if not found."""
+        """Return the VTK actor for the given point_id, or None."""
         for actor in self.actors:
             if hasattr(actor, "point_id") and actor.point_id == point_id:
                 return actor
         return None
 
     def surfaces_get_actor(self, surface_id):
-        """Returns the VTK actor associated with the given surface_id, or None if not found."""
+        """Return the VTK actor for the given surface_id, or None."""
         for actor in self.actors:
             if hasattr(actor, "surface_id") and actor.surface_id == surface_id:
                 return actor
         return None
 
+    # -------------------------------------------------------------------------
+    # Actor Management
+    # -------------------------------------------------------------------------
+
     def RemoveAllActors(self):
-        if self.actors:
-            for actor in self.actors:
-                self.RemoveActor(actor)
-            self.actors = []
-        self.RemoveSurfaceActors()
+        for actor in self.actors:
+            self.RemoveActor(actor)
+        self.actors = []
+        self.RemoveContourActors()
         self.RemoveSurfaceActor()
         self.RemoveWireframeActor()
         self.RemoveScaleBarActor()
-        self.surfaceActors = []
+        self.contourActors = []
         self.UpdateView()
         if self.model:
             self.model.RemoveAllActors()
 
-    def calculate_polyline_length(self, polyline):
-        """Calculates the total length of a polyline."""
-        length = 0.0
-        for i in range(1, len(polyline)):
-            x1, y1, z1, *_ = polyline[i - 1]
-            x2, y2, z2, *_ = polyline[i]
-            length += ((x2 - x1)**2 + (y2 - y1)**2 + (z2 - z1)**2) ** 0.5
-        return round(length, 3)
+    def AddActor(self, pvtkActor):
+        if self.renderer is None:
+            raise RuntimeError("Renderer is not initialized.")
+        self.renderer.AddActor(pvtkActor)
+
+    def RemoveActor(self, pvtkActor):
+        if self.renderer is None:
+            raise RuntimeError("Renderer is not initialized.")
+        self.renderer.RemoveActor(pvtkActor)
+
+    def AddActor2D(self, pvtkActor):
+        if self.renderer is None:
+            raise RuntimeError("Renderer is not initialized.")
+        self.renderer.AddActor2D(pvtkActor)
+
+    def RemoveActor2D(self, pvtkActor):
+        if self.renderer is None:
+            raise RuntimeError("Renderer is not initialized.")
+        self.renderer.RemoveActor2D(pvtkActor)
+
+    def polylines_update_data(self):
+        if self.model:
+            self.model.polylines_reread_table()
+
+    # -------------------------------------------------------------------------
+    # Picking & Selection
+    # -------------------------------------------------------------------------
 
     def on_pick(self, obj, event):  # pyright: ignore[reportUnusedVariable]
-        """Handles picking an actor and updates selection and dialog accordingly."""
+        """Handle actor picking on left-button press."""
         _, _ = obj, event
-        if (self.interactor is None or \
-            self.picker is None or \
-            self.renderer is None or \
-            self.unpick):
+        if (self.interactor is None
+                or self.picker is None
+                or self.renderer is None
+                or self.unpick):
             return
 
         click_pos = self.interactor.GetEventPosition()
-
         self.picker.Pick(click_pos[0], click_pos[1], 0, self.renderer)
         actor = self.picker.GetActor()
 
@@ -174,7 +209,6 @@ class i3vtkWidget(QWidget):
             else:
                 if self.selected_actor:
                     self.deselect_actor(self.selected_actor)
-                    # self.hide_dialog()
                 self.select_actor(actor)
                 self.show_dialog(actor)
         else:
@@ -185,61 +219,55 @@ class i3vtkWidget(QWidget):
         self.UpdateView(False)
 
     def select_actor(self, actor):
-        """Select a new actor (point or polyline) by changing its color and line width."""
-
+        """Highlight a polyline or point actor on selection."""
         if self.model is None:
             return
 
-        if hasattr(actor, 'polyline_id') and actor.polyline_id in self.model.polylines:
-            # Handle polyline selection
-            actor.GetProperty().SetColor(Params.SelectedColor.value)  # Yellow color
+        if hasattr(actor, "polyline_id") and actor.polyline_id in self.model.polylines:
+            actor.GetProperty().SetColor(Params.SelectedColor.value)
             actor.GetProperty().SetLineWidth(Params.PolylineSelectedWidth.value)
-        elif hasattr(actor, 'point_id') and actor.point_id in self.model.points:
-            # Handle point selection
-            actor.GetProperty().SetColor(Params.SelectedColor.value)  # Yellow color
+        elif hasattr(actor, "point_id") and actor.point_id in self.model.points:
+            actor.GetProperty().SetColor(Params.SelectedColor.value)
             actor = self.model.point_select(actor, Params.PointWinSelectedRadius.value)
         else:
-            return  # Ignore invalid actors
+            return
 
         self.selected_actor = actor
 
     def deselect_actor(self, actor):
-        """Deselect the given actor (point or polyline) by restoring its original color and size."""
-
+        """Restore a polyline or point actor to its original appearance."""
         if self.model is None:
             return
 
         if hasattr(actor, "polyline_id") and hasattr(actor, "color"):
-            # Handle polyline deselection
             if self.heatmap:
-                rainbow_color = getattr(actor, "rainbow_color")
-                rainbow_width = getattr(actor, "rainbow_width")
-                color = rainbow_color
-                width = rainbow_width
+                color = getattr(actor, "rainbow_color")
+                width = getattr(actor, "rainbow_width")
             else:
-                original_color = getattr(actor, "color")
-                color = original_color
+                color = getattr(actor, "color")
                 width = Params.PolylineDefaultWidth.value
             actor.GetProperty().SetColor(color)
             actor.GetProperty().SetLineWidth(width)
+
         elif hasattr(actor, "point_id") and hasattr(actor, "color"):
-            # Handle point deselection
-            original_color = getattr(actor, "color")
-            actor.GetProperty().SetColor(original_color)
+            actor.GetProperty().SetColor(getattr(actor, "color"))
             self.model.point_select(actor, Params.PointWinRadius.value)
+
         else:
-            return  # Ignore invalid actors
+            return
 
         self.selected_actor = None
 
-    def show_dialog(self, actor):
-        """Displays or updates the dialog with polyline or point information."""
+    # -------------------------------------------------------------------------
+    # Dialogs
+    # -------------------------------------------------------------------------
 
+    def show_dialog(self, actor):
+        """Show or update the info dialog for a selected polyline or point."""
         if self.model is None:
             return
 
-        if hasattr(actor, 'polyline_id'):
-            # Handle polyline
+        if hasattr(actor, "polyline_id"):
             polyline_id = actor.polyline_id
             points = self.model.polylines[polyline_id]
             num_points = len(points)
@@ -248,60 +276,57 @@ class i3vtkWidget(QWidget):
             if self.polylineDialog is None:
                 self.polylineDialog = PolylineDialog(
                     polyline_id, num_points, polyline_length, points)
-                self.polylineDialog.dialog_closed.connect(
-                    self.handle_dialog_closed)
+                self.polylineDialog.dialog_closed.connect(self.handle_dialog_closed)
 
-            # self.polylineDialog.setWindowFlags(Qt.WindowStaysOnTopHint)  # Force the dialog to stay on top
-            self.polylineDialog.show()  # Keep it non-modal
+            self.polylineDialog.show()
             self.polylineDialog.clear_dialog()
             self.polylineDialog.update_dialog(
                 polyline_id, num_points, polyline_length, points)
 
-        elif hasattr(actor, 'point_id'):
-            # Handle point
+        elif hasattr(actor, "point_id"):
             point_id = actor.point_id
-            # Assuming self.model.points stores point data
             point_data = self.model.points[point_id]
 
             if self.pointDialog is None:
                 self.pointDialog = PointDialog(point_id, *point_data[0])
-                self.pointDialog.dialog_closed.connect(
-                    self.handle_dialog_closed)
+                self.pointDialog.dialog_closed.connect(self.handle_dialog_closed)
 
-            # self.pointDialog.setWindowFlags(Qt.WindowStaysOnTopHint)  # Force the dialog to stay on top
-            self.pointDialog.show()  # Keep it non-modal
+            self.pointDialog.show()
             self.pointDialog.clear_dialog()
             self.pointDialog.update_dialog(point_id, *point_data[0])
 
     def hide_dialog(self):
-        """Resets the dialog when a polyline is deselected."""
+        """Hide all open info dialogs."""
         if self.polylineDialog:
             self.polylineDialog.hide()
         if self.pointDialog:
             self.pointDialog.hide()
 
     def clear_dialog(self):
-        """Resets the dialog when a polyline is deselected."""
+        """Clear content in all open info dialogs."""
         if self.polylineDialog:
             self.polylineDialog.clear_dialog()
         if self.pointDialog:
             self.pointDialog.clear_dialog()
 
     def handle_dialog_closed(self):
-        """Handle the dialog_closed signal to clean up the dialog reference."""
+        """Clean up dialog references after they are closed."""
         if self.polylineDialog:
             self.polylineDialog = None
         if self.pointDialog:
             self.pointDialog = None
-        # print("Dialog closed and reference cleaned up.")
 
     def closeEvent(self, event):
-        """Override closeEvent to close the dialog when the application is closed."""
+        """Close open dialogs when the widget is closed."""
         if self.polylineDialog:
             self.polylineDialog.close()
         if self.pointDialog:
             self.pointDialog.close()
-        event.accept()  # Accept the close event
+        event.accept()
+
+    # -------------------------------------------------------------------------
+    # Renderer & Window Setup
+    # -------------------------------------------------------------------------
 
     def SetupWnd(self):
         self.SetupRenderer()
@@ -311,15 +336,15 @@ class i3vtkWidget(QWidget):
     def SetupRenderer(self):
         self.renderer = vtk.vtkRenderer()
         self.renderer.SetBackground(0.2, 0.3, 0.4)
-        # Keep self as parent for correct Qt integration
-        self.interactor = QVTK.QVTKRenderWindowInteractor(self)
 
+        self.interactor = QVTK.QVTKRenderWindowInteractor(self)
         self.trackball = vtk.vtkInteractorStyleTrackballCamera()
         self.interactor.SetInteractorStyle(self.trackball)
 
-        self.interactor.GetRenderWindow().AddRenderer(self.renderer)
-        self.interactor.GetRenderWindow().PointSmoothingOn()
-        self.interactor.GetRenderWindow().LineSmoothingOn()
+        render_window = self.interactor.GetRenderWindow()
+        render_window.AddRenderer(self.renderer)
+        render_window.PointSmoothingOn()
+        render_window.LineSmoothingOn()
 
         layout = self.layout()
         if layout is None:
@@ -328,24 +353,21 @@ class i3vtkWidget(QWidget):
             layout.setSpacing(0)
         layout.addWidget(self.interactor)
 
-        # Create picker
         self.picker = vtk.vtkCellPicker()
         self.picker.SetTolerance(0.005)
         self.interactor.SetPicker(self.picker)
-
-        # Attach the picker event to the interactor
         self.interactor.AddObserver("LeftButtonPressEvent", self.on_pick)
 
         self.interactor.Initialize()
         self.interactor.Start()
 
     def MakeAxesActor(self):
+        """Build and return a configured vtkAxesActor."""
         axes = vtk.vtkAxesActor()
-        # axes.SetShaftTypeToCylinder()
         axes.SetShaftTypeToLine()
-        axes.SetXAxisLabelText('X')
-        axes.SetYAxisLabelText('Y')
-        axes.SetZAxisLabelText('Z')
+        axes.SetXAxisLabelText("X")
+        axes.SetYAxisLabelText("Y")
+        axes.SetZAxisLabelText("Z")
         axes.SetTotalLength(1.5, 1.5, 1.5)
         axes.SetCylinderRadius(0.5 * axes.GetCylinderRadius())
         axes.SetConeRadius(1.025 * axes.GetConeRadius())
@@ -361,35 +383,33 @@ class i3vtkWidget(QWidget):
         self.om1.InteractiveOff()
 
     def ResizeTrihedron(self, width, height):
-        if self.Trihedron:
-            if (width == 0):
-                width = 100
-            if (height == 0):
-                height = 100
-
-            if self.TrihedronPos == 1:  # Position lower Left in the viewport.
-                self.om1.SetViewport(0, 0, (200.0 / width), (200.0 / height))
-
-            if self.TrihedronPos == 2:  # Position lower Right in the viewport.
-                self.om1.SetViewport(1 - (200.0 / width),
-                                     0, 1, (200.0 / height))
+        if not self.Trihedron:
+            return
+        width = max(width, 100)
+        height = max(height, 100)
+        if self.TrihedronPos == 1:  # Lower-left
+            self.om1.SetViewport(0, 0, 200.0 / width, 200.0 / height)
+        elif self.TrihedronPos == 2:  # Lower-right
+            self.om1.SetViewport(1 - 200.0 / width, 0, 1, 200.0 / height)
 
     def paintEvent(self, event) -> None:
-        """Handle resize events to ensure the VTK render window matches the widget size."""
+        """Resize the VTK render window to match the widget on repaint."""
         _ = event
-        # Get the new size of the widget
         new_size = self.size()
-
-        # Resize the VTK render window to match the widget size
         if self.interactor and self.interactor.GetRenderWindow():
-            self.interactor.GetRenderWindow().SetSize(new_size.width(), new_size.height())
-            self.interactor.GetRenderWindow().Render()  # Force a re-render
+            self.interactor.GetRenderWindow().SetSize(
+                new_size.width(), new_size.height())
+            self.interactor.GetRenderWindow().Render()
         self.ResizeTrihedron(new_size.width(), new_size.height())
 
-    def UpdateView(self, resetCamara=True):
+    # -------------------------------------------------------------------------
+    # Camera & View
+    # -------------------------------------------------------------------------
+
+    def UpdateView(self, resetCamera=True):
         if self.interactor is None:
-            raise RuntimeError("self.interactor could not be created.")
-        if resetCamara:
+            raise RuntimeError("Interactor is not initialized.")
+        if resetCamera:
             self.ResetCamera()
         self.interactor.ReInitialize()
         self.interactor.GetRenderWindow().Render()
@@ -397,253 +417,217 @@ class i3vtkWidget(QWidget):
 
     def ResetCamera(self):
         if self.renderer is None:
-            raise RuntimeError("self.interactor could not be created.")
+            raise RuntimeError("Renderer is not initialized.")
         self.renderer.ResetCamera()
         self.camera = self.renderer.GetActiveCamera()
         self.camera.ParallelProjectionOn()
 
-    def AddActor(self, pvtkActor):
-        if self.renderer is None:
-            raise RuntimeError("self.interactor could not be created.")
-        self.renderer.AddActor(pvtkActor)
-
-    def RemoveActor(self, pvtkActor):
-        if self.renderer is None:
-            raise RuntimeError("self.interactor could not be created.")
-        self.renderer.RemoveActor(pvtkActor)
-
-    def AddActor2D(self, pvtkActor):
-        if self.renderer is None:
-            raise RuntimeError("self.interactor could not be created.")
-        self.renderer.AddActor2D(pvtkActor)
-
-    def RemoveActor2D(self, pvtkActor):
-        if self.renderer is None:
-            raise RuntimeError("self.interactor could not be created.")
-        self.renderer.RemoveActor2D(pvtkActor)
-
-    def SetRepresentation(self, aTyp):
-        ''' aTyp = 1 - Points
-            aTyp = 2 - Wireframe
-            aTyp = 3 - Surface
-            aTyp = 4 - Surface with edges
-        '''
-        if self.renderer is None:
-            raise RuntimeError("self.interactor could not be created.")
-        num_actors = self.renderer.GetActors().GetNumberOfItems()
-        for i in range(num_actors):
-            actor = self.renderer.GetActors().GetItemAsObject(i)
-            if isinstance(actor, vtkActor):
-                if (aTyp == 1):
-                    actor.GetProperty().SetRepresentationToPoints()
-                    actor.GetProperty().SetPointSize(4.0)
-                    self.ShowEdges = False
-
-                if (aTyp == 2):
-                    actor.GetProperty().SetRepresentationToWireframe()
-                    self.ShowEdges = False
-
-                if (aTyp == 3):
-                    actor.GetProperty().SetRepresentationToSurface()
-                    actor.GetProperty().EdgeVisibilityOff()
-                    self.ShowEdges = False
-
-                if (aTyp == 4):
-                    actor.GetProperty().SetRepresentationToSurface()
-                    actor.GetProperty().EdgeVisibilityOn()
-                    self.ShowEdges = True
-        self.UpdateView()
-
     def OnFrontView(self):
-        delta = 1
-        lookAt = self.camera.GetFocalPoint()
-        self.camera.SetPosition(lookAt[0], lookAt[1], lookAt[2] + delta)
+        focal = self.camera.GetFocalPoint()
+        self.camera.SetPosition(focal[0], focal[1], focal[2] + 1)
         self.camera.SetViewUp(0, 1, 0)
-
         self.ResetCamera()
         self.UpdateView()
 
     def OnBackView(self):
-        delta = -1
-        lookAt = self.camera.GetFocalPoint()
-        self.camera.SetPosition(lookAt[0], lookAt[1], lookAt[2] + delta)
+        focal = self.camera.GetFocalPoint()
+        self.camera.SetPosition(focal[0], focal[1], focal[2] - 1)
         self.camera.SetViewUp(0, 1, 0)
-
         self.ResetCamera()
         self.UpdateView()
 
     def OnTopView(self):
-        delta = 1
-        lookAt = self.camera.GetFocalPoint()
-        self.camera.SetPosition(lookAt[0], lookAt[1] + delta, lookAt[2])
-        self.camera.SetViewUp(0, 0, -delta)
-
+        focal = self.camera.GetFocalPoint()
+        self.camera.SetPosition(focal[0], focal[1] + 1, focal[2])
+        self.camera.SetViewUp(0, 0, -1)
         self.ResetCamera()
         self.UpdateView()
 
     def OnBottomView(self):
-        delta = -1
-        lookAt = self.camera.GetFocalPoint()
-        self.camera.SetPosition(lookAt[0], lookAt[1] + delta, lookAt[2])
-        self.camera.SetViewUp(0, 0, -delta)
-
+        focal = self.camera.GetFocalPoint()
+        self.camera.SetPosition(focal[0], focal[1] - 1, focal[2])
+        self.camera.SetViewUp(0, 0, 1)
         self.ResetCamera()
         self.UpdateView()
 
     def OnLeftView(self):
-        delta = 1
-        lookAt = self.camera.GetFocalPoint()
-        self.camera.SetPosition(lookAt[0] + delta, lookAt[1], lookAt[2])
+        focal = self.camera.GetFocalPoint()
+        self.camera.SetPosition(focal[0] + 1, focal[1], focal[2])
         self.camera.SetViewUp(0, 1, 0)
-
         self.ResetCamera()
         self.UpdateView()
 
     def OnRightView(self):
-        delta = -1
-        lookAt = self.camera.GetFocalPoint()
-        self.camera.SetPosition(lookAt[0] + delta, lookAt[1], lookAt[2])
+        focal = self.camera.GetFocalPoint()
+        self.camera.SetPosition(focal[0] - 1, focal[1], focal[2])
         self.camera.SetViewUp(0, 1, 0)
-
         self.ResetCamera()
         self.UpdateView()
 
     def OnIsometricView(self):
-        delta = 1
-        lookAt = self.camera.GetFocalPoint()
-        self.camera.SetPosition(
-            lookAt[0] + delta, lookAt[1] + delta, lookAt[2] + delta)
-
+        focal = self.camera.GetFocalPoint()
+        self.camera.SetPosition(focal[0] + 1, focal[1] + 1, focal[2] + 1)
         self.camera.SetViewUp(0, 1, 0)
         self.ResetCamera()
         self.UpdateView()
 
     def OnFitView(self):
         if self.renderer is None:
-            raise RuntimeError("self.interactor could not be created.")
+            raise RuntimeError("Renderer is not initialized.")
         self.renderer.ResetCameraClippingRange()
         self.ResetCamera()
         self.UpdateView()
 
+    # -------------------------------------------------------------------------
+    # Representation
+    # -------------------------------------------------------------------------
+
+    def SetRepresentation(self, aTyp):
+        """Set actor representation mode.
+
+        aTyp:
+            1 – Points
+            2 – Wireframe
+            3 – Surface
+            4 – Surface with edges
+        """
+        if self.renderer is None:
+            raise RuntimeError("Renderer is not initialized.")
+
+        for i in range(self.renderer.GetActors().GetNumberOfItems()):
+            actor = self.renderer.GetActors().GetItemAsObject(i)
+            if not isinstance(actor, vtkActor):
+                continue
+            prop = actor.GetProperty()
+            if aTyp == 1:
+                prop.SetRepresentationToPoints()
+                prop.SetPointSize(4.0)
+                self.ShowEdges = False
+            elif aTyp == 2:
+                prop.SetRepresentationToWireframe()
+                self.ShowEdges = False
+            elif aTyp == 3:
+                prop.SetRepresentationToSurface()
+                prop.EdgeVisibilityOff()
+                self.ShowEdges = False
+            elif aTyp == 4:
+                prop.SetRepresentationToSurface()
+                prop.EdgeVisibilityOn()
+                self.ShowEdges = True
+
+        self.UpdateView()
+
+    # -------------------------------------------------------------------------
+    # Heatmap
+    # -------------------------------------------------------------------------
+
     def OnHeatMap(self, enable):
-        if self.model and self.model.polylines:
-            self.heatmap = enable
-            tonelajes = [polyline[0][5] \
-                if polyline[0][5] is not None \
-                else 0 \
-                for polyline in self.model.polylines.values()]
-            min_tonelaje = min(tonelajes)
-            max_tonelaje = max(tonelajes)
-            for polyline_id, polyline in self.model.polylines.items():
+        if not (self.model and self.model.polylines):
+            return
 
-                tonelaje = polyline[0][5] if polyline[0][5] is not None else 0
-                actor = self.polylines_get_actor(polyline_id)
+        self.heatmap = enable
+        tonelajes = [
+            polyline[0][5] if polyline[0][5] is not None else 0
+            for polyline in self.model.polylines.values()
+        ]
+        min_tonelaje = min(tonelajes)
+        max_tonelaje = max(tonelajes)
 
-                if enable:
-                    color = self.rainbow_color(tonelaje, min_tonelaje, max_tonelaje)
-                    setattr(actor, "rainbow_color", color)
-                    width = self.rainbow_width(tonelaje, min_tonelaje, max_tonelaje)
-                    setattr(actor, "rainbow_width", width)
-                else:
-                    color = getattr(actor, "color")
-                    width = Params.PolylineDefaultWidth.value
-
-                if hasattr(actor, "GetProperty"):
-                    property = getattr(actor, 'GetProperty')()
-                    property.SetColor(color)
-                    property.SetLineWidth(width)
+        for polyline_id, polyline in self.model.polylines.items():
+            tonelaje = polyline[0][5] if polyline[0][5] is not None else 0
+            actor = self.polylines_get_actor(polyline_id)
 
             if enable:
-                self.AddScaleBarActor()
+                color = self.rainbow_color(tonelaje, min_tonelaje, max_tonelaje)
+                width = self.rainbow_width(tonelaje, min_tonelaje, max_tonelaje)
+                setattr(actor, "rainbow_color", color)
+                setattr(actor, "rainbow_width", width)
             else:
-                self.RemoveScaleBarActor()
+                color = getattr(actor, "color")
+                width = Params.PolylineDefaultWidth.value
 
-            if self.polylabel:
-                self.CleanPolylabels()
-                self.OnPolylabels(self.polylabel, FileType.DB)
-            else:
-                self.UpdateView(False)
+            if hasattr(actor, "GetProperty"):
+                prop = getattr(actor, 'GetProperty')()
+                prop.SetColor(color)
+                prop.SetLineWidth(width)
+
+        if enable:
+            self.AddScaleBarActor()
+        else:
+            self.RemoveScaleBarActor()
+
+        if self.polylabel:
+            self.CleanPolylabels()
+            self.OnPolylabels(self.polylabel, FileType.DB)
+        else:
+            self.UpdateView(False)
 
     def rainbow_color(self, tonne, min_tonne=0, max_tonne=100):
-        """Convert a value to a color using the VTK rainbow colormap."""
-        # Create rainbow colormap
+        """Map a tonne value to an RGB tuple using VTK's rainbow colormap."""
         lut = Params.LookupTable.value
         lut.SetTableRange(min_tonne, max_tonne)
         lut.Build()
-
-        # Get color for value
         rgb = [0.0, 0.0, 0.0]
         lut.GetColor(tonne, rgb)
-
-        # Convert to integers in range 0-255
-        rgb_int = tuple(int(255 * c) for c in rgb)
-
-        return rgb_int
+        return tuple(int(255 * c) for c in rgb)
 
     def rainbow_width(self, tonne, min_tonne, max_tonne):
-        """
-        Calculates the proportional width of a polyline based on current tonne value.
+        """Calculate proportional polyline width based on tonne value.
 
         Args:
-            tonne (float): The current tonne value for which to calculate the width.
-            min_tonne (float): The minimum tonne value in the data range.
-            max_tonne (float): The maximum tonne value in the data range.
+            tonne: Current tonne value.
+            min_tonne: Minimum of the data range.
+            max_tonne: Maximum of the data range.
 
         Returns:
-            float: The calculated polyline width, clamped between min_width and max_width.
-                  Returns min_width if current_tonne is less than or equal to min_tonne.
-                  Returns max_width if current_tonne is greater than or equal to max_tonne.
+            float: Linearly interpolated width, clamped to [min_width, max_width].
         """
-
         min_width = Params.PolylineMinWidth.value
         max_width = Params.PolylineMaxWidth.value
 
         if min_tonne == max_tonne:
-            # Avoid division by zero if the tonne range is a single point
             return (min_width + max_width) / 2
 
-        # Clamp current_tonne to the valid range to ensure width stays within min/max_width
-        clamped_tonne = max(min_tonne, min(max_tonne, tonne))
+        clamped = max(min_tonne, min(max_tonne, tonne))
+        return min_width + (clamped - min_tonne) * (max_width - min_width) / (max_tonne - min_tonne)
 
-        # Perform linear interpolation
-        # normalized_tonne = (clamped_tonne - min_tonne) / (max_tonne - min_tonne)
-        # polyline_width = min_width + (max_width - min_width) * normalized_tonne
-
-        # Simplified linear interpolation:
-        polyline_width = min_width + (clamped_tonne - min_tonne) * \
-                         (max_width - min_width) / (max_tonne - min_tonne)
-
-        return polyline_width
-
+    # -------------------------------------------------------------------------
+    # Scale Bar
+    # -------------------------------------------------------------------------
 
     def AddScaleBarActor(self):
-        """ Add Color Scale Bar for Tonnes """
+        """Add the colour scale bar (Mt) to the renderer."""
         lut = Params.LookupTable.value
         min_tonne, max_tonne = lut.GetTableRange()
-        lut.SetTableRange(min_tonne/1000000, max_tonne/1000000)
+        lut.SetTableRange(min_tonne / 1_000_000, max_tonne / 1_000_000)
         lut.Build()
 
-        # Create scalar bar (color bar)
         self.scalarBarActor.SetLookupTable(lut)
         self.scalarBarActor.SetTitle("Mt     ")
         self.scalarBarActor.SetNumberOfLabels(5)
-        self.scalarBarActor.SetPosition(0.85, 0.1)  # Position on right side
+        self.scalarBarActor.SetPosition(0.85, 0.1)
         self.scalarBarActor.SetWidth(0.04)
         self.scalarBarActor.SetHeight(0.8)
         self.scalarBarActor.SetLabelFormat("%.1f")
 
-        # Customize scalar bar appearance
-        self.scalarBarActor.GetTitleTextProperty().SetColor(1, 1, 0)
-        self.scalarBarActor.GetTitleTextProperty().SetFontSize(14)
-        self.scalarBarActor.GetLabelTextProperty().SetColor(1, 1, 0)
-        self.scalarBarActor.GetLabelTextProperty().SetFontSize(12)
+        title_prop = self.scalarBarActor.GetTitleTextProperty()
+        title_prop.SetColor(1, 1, 0)
+        title_prop.SetFontSize(14)
+
+        label_prop = self.scalarBarActor.GetLabelTextProperty()
+        label_prop.SetColor(1, 1, 0)
+        label_prop.SetFontSize(12)
 
         self.AddActor2D(self.scalarBarActor)
 
     def RemoveScaleBarActor(self):
-        """ Remove Color Scale Bar for Tonnes """
+        """Remove the colour scale bar from the renderer."""
         if self.scalarBarActor:
             self.RemoveActor2D(self.scalarBarActor)
+
+    # -------------------------------------------------------------------------
+    # Polyline Labels
+    # -------------------------------------------------------------------------
 
     def OnPolylabels(self, enable, fileType):
         if not self.model:
@@ -658,33 +642,42 @@ class i3vtkWidget(QWidget):
         self.UpdateView(False)
 
     def polylabels_create_actors(self, fileType):
-        if self.model and self.model.polylines:
+        if not (self.model and self.model.polylines):
+            return
 
-            if fileType == FileType.DB:
-                self.model.polylabels = {}
-                self.model.polylabel_id = 1
+        if fileType == FileType.DB:
+            self.model.polylabels = {}
+            self.model.polylabel_id = 1
 
-            for polyline_id, polyline in self.model.polylines.items():
-                actor = self.polylines_get_actor(polyline_id)
+        for polyline_id, polyline in self.model.polylines.items():
+            actor = self.polylines_get_actor(polyline_id)
+            row = polyline[0]
+
+            if fileType == FileType.DB and self.heatmap:
+                route = row[4] if row[4] is not None else str(polyline_id)
+                tonelaje = row[5] if row[5] is not None else 0
+                label = f"{route}={tonelaje / 1_000_000:,.1f}Mt"
+            elif fileType == FileType.DB and not self.heatmap:
+                route = row[4] if row[4] is not None else str(polyline_id)
+                label = f"{route}"
+            elif fileType in (FileType.XYZ, FileType.CSV):
+                label = f"{polyline_id}"
+            else:
                 label = ""
-                if fileType == FileType.DB and self.heatmap:
-                    route = polyline[0][4] if polyline[0][4] is not None else str(polyline_id)
-                    tonelaje = polyline[0][5] if polyline[0][5] is not None else 0
-                    label = f"{route}={tonelaje/1000000:,.1f}Mt"
-                if fileType == FileType.DB and not self.heatmap:
-                    route = polyline[0][4] if polyline[0][4] is not None else str(polyline_id)
-                    label = f"{route}"
-                elif fileType == FileType.XYZ or fileType == FileType.CSV:
-                    label = f"{polyline_id}"
-                label_actor = self.model.polylabels_create_actor(actor, label)
-                self.model.polylabels[self.model.polylabel_id] = label_actor # Add to dictionary with current label actor
-                self.model.polylabel_id += 1  # Increment for next label
+
+            label_actor = self.model.polylabels_create_actor(actor, label)
+            self.model.polylabels[self.model.polylabel_id] = label_actor
+            self.model.polylabel_id += 1
 
     def CleanPolylabels(self):
         if not self.model:
             return
         for _, label in self.model.polylabels.items():
             self.RemoveActor(label)
+
+    # -------------------------------------------------------------------------
+    # Point Labels
+    # -------------------------------------------------------------------------
 
     def OnPointLabels(self, enable, fileType):
         if not self.model:
@@ -699,21 +692,23 @@ class i3vtkWidget(QWidget):
         self.UpdateView(False)
 
     def pointlabels_create_actors(self, fileType):
-        if self.model and self.model.points:
+        if not (self.model and self.model.points):
+            return
 
-            if fileType == FileType.DB:
-                self.model.pointlabels = {}
-                self.model.pointlabel_id = 1
+        if fileType == FileType.DB:
+            self.model.pointlabels = {}
+            self.model.pointlabel_id = 1
 
-            for point_id, point in self.model.points.items():
-                actor = self.points_get_actor(point_id)
-                label = ""
-                if fileType == FileType.SRG or fileType == FileType.DB:
-                    name = point[0][3] if point[0][3] is not None else ""
-                    label = name.upper()
-                label_actor = self.model.pointlabels_create_actor(actor, label)
-                self.model.pointlabels[self.model.pointlabel_id] = label_actor # Add to dictionary with current label actor
-                self.model.pointlabel_id += 1  # Increment for next label
+        for point_id, point in self.model.points.items():
+            actor = self.points_get_actor(point_id)
+            label = ""
+            if fileType in (FileType.SRG, FileType.DB):
+                name = point[0][3] if point[0][3] is not None else ""
+                label = name.upper()
+
+            label_actor = self.model.pointlabels_create_actor(actor, label)
+            self.model.pointlabels[self.model.pointlabel_id] = label_actor
+            self.model.pointlabel_id += 1
 
     def CleanPointlabels(self):
         if not self.model:
@@ -721,11 +716,12 @@ class i3vtkWidget(QWidget):
         for _, label in self.model.pointlabels.items():
             self.RemoveActor(label)
 
+    # -------------------------------------------------------------------------
+    # Surface & Wireframe
+    # -------------------------------------------------------------------------
+
     def ValidSurfaces(self):
-        if self.model and self.model.surfaces:
-            return True
-        else:
-            return False
+        return bool(self.model and self.model.surfaces)
 
     def AddSurfaceActor(self):
         if self.surfaceActor:
@@ -735,59 +731,18 @@ class i3vtkWidget(QWidget):
         if self.surfaceActor:
             self.RemoveActor(self.surfaceActor)
 
-    def surface_reconstruction_actor(self, fileType, delaunaycfg, surfacecfg):
-        if not self.model:
-            return
-
-        # Create a vtkAppendPolyData to combine all contour lines
-        append_contours = vtk.vtkAppendPolyData()
-
-        # Create contours at different surface elevations
-        for actor in self.surfaceActors:
-            mapper = actor.GetMapper()
-            if mapper:
-                polyData = mapper.GetInput()
-                if polyData and polyData.GetNumberOfPoints() > 0:
-                    if fileType == FileType.XYZS or fileType == FileType.DB:
-                        append_contours.AddInputData(polyData)
-
-        append_contours.Update()
-        contour_polydata = append_contours.GetOutput()
-        return self.model.surface_reconstruction_actor(contour_polydata, delaunaycfg, surfacecfg)
-
-    def AddSurfaceActors(self):
-        for actor in self.surfaceActors:
+    def AddContourActors(self):
+        for actor in self.contourActors:
             self.AddActor(actor)
 
-    def RemoveSurfaceActors(self):
-        for actor in self.surfaceActors:
+    def RemoveContourActors(self):
+        for actor in self.contourActors:
             self.RemoveActor(actor)
 
-    def UpdateColorSurfaceActors(self, color):
-        for actor in self.surfaceActors:
-            if hasattr(actor, 'GetProperty'):
-                property = getattr(actor, 'GetProperty')()
-                property.SetColor(color)
-
-    def wireframe_reconstruction_actor(self, fileType, delaunaycfg, surfacecfg):
-        if not self.model:
-            return
-
-        # Create a vtkAppendPolyData to combine all contour lines
-        append_contours = vtk.vtkAppendPolyData()
-
-        # Create contours at different surface elevations
-        for actor in self.surfaceActors:
-            mapper = actor.GetMapper()
-            if mapper:
-                polyData = mapper.GetInput()
-                if polyData and polyData.GetNumberOfPoints() > 0:
-                    if fileType == FileType.XYZS or fileType == FileType.DB:
-                        append_contours.AddInputData(polyData)
-
-        append_contours.Update()
-        contour_polydata = append_contours.GetOutput()
-        return self.model.wireframe_reconstruction_actor(contour_polydata, delaunaycfg, surfacecfg)
+    def UpdateColorContourActors(self, color):
+        for actor in self.contourActors:
+            if hasattr(actor, "GetProperty"):
+                actor.GetProperty().SetColor(color)
 
     def AddWireframeActor(self):
         if self.wireframeActor:
@@ -796,6 +751,33 @@ class i3vtkWidget(QWidget):
     def RemoveWireframeActor(self):
         if self.wireframeActor:
             self.RemoveActor(self.wireframeActor)
+
+    def _build_contour_polydata(self, fileType):
+        """Combine surface actor poly data into a single vtkPolyData."""
+        append = vtk.vtkAppendPolyData()
+        for actor in self.contourActors:
+            mapper = actor.GetMapper()
+            if mapper:
+                poly_data = mapper.GetInput()
+                if poly_data and poly_data.GetNumberOfPoints() > 0:
+                    if fileType in (FileType.XYZS, FileType.DB):
+                        append.AddInputData(poly_data)
+        append.Update()
+        return append.GetOutput()
+
+    def surface_reconstruction_actor(self, fileType, delaunaycfg, surfacecfg):
+        if not self.model:
+            return None
+        contour_polydata = self._build_contour_polydata(fileType)
+        return self.model.surface_reconstruction_actor(
+            contour_polydata, delaunaycfg, surfacecfg)
+
+    def wireframe_reconstruction_actor(self, fileType, delaunaycfg, surfacecfg):
+        if not self.model:
+            return None
+        contour_polydata = self._build_contour_polydata(fileType)
+        return self.model.wireframe_reconstruction_actor(
+            contour_polydata, delaunaycfg, surfacecfg)
 
     def UpdateSurface(self, fileType):
         cfg = self.delaunaycfg, self.surfacecfg
@@ -807,3 +789,16 @@ class i3vtkWidget(QWidget):
         self.RemoveWireframeActor()
         self.wireframeActor = self.wireframe_reconstruction_actor(fileType, *cfg)
         self.AddWireframeActor()
+
+    # -------------------------------------------------------------------------
+    # Utilities
+    # -------------------------------------------------------------------------
+
+    def calculate_polyline_length(self, polyline):
+        """Return the total 3-D length of a polyline, rounded to 3 decimal places."""
+        length = 0.0
+        for i in range(1, len(polyline)):
+            x1, y1, z1, *_ = polyline[i - 1]
+            x2, y2, z2, *_ = polyline[i]
+            length += ((x2 - x1) ** 2 + (y2 - y1) ** 2 + (z2 - z1) ** 2) ** 0.5
+        return round(length, 3)
