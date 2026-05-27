@@ -1,14 +1,20 @@
+import csv
+import math
 import random
 import sqlite3
+import sys
 
 import vtk
-import math
-import csv
-import sys
 
 from i3viewer.i3enums import FileType, Params
 
+
 class i3model:
+
+    # -------------------------------------------------------------------------
+    # Initialization
+    # -------------------------------------------------------------------------
+
     def __init__(self, file_path):
         self.file_path = file_path
 
@@ -40,101 +46,112 @@ class i3model:
         self.polylabel_id = 1
         self.pointlabel_id = 1
 
-    def polylines_format_actors(self, fileType):
-        """Executes the full pipeline."""
-        polylines = None
-        if fileType == FileType.DB:
-            polylines = self.polylines_read_table()
-        elif fileType == FileType.XYZ:
-            polylines = self.polylines_read_xyz_file()
-        elif fileType == FileType.CSV:
-            polylines = self.polylines_read_csv_file()
-        else:
-            return []
+    # -------------------------------------------------------------------------
+    # Database Utilities
+    # -------------------------------------------------------------------------
 
-        if polylines:
-            self.polylines.update(polylines)
-        return self.polylines_create_actors()
+    def _connect(self):
+        """Return a new SQLite connection to the current file path."""
+        return sqlite3.connect(self.file_path)
 
-    def polylines_reread_table(self):
-        polylines = self.polylines_read_table()
-        if polylines:
-            self.polylines.update(polylines)
+    def table_exists(self, table_name):
+        """Return True if the given table exists in the SQLite database."""
+        try:
+            conn = self._connect()
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+                (table_name,),
+            )
+            result = cursor.fetchone()
+            conn.close()
+            return result is not None
+        except sqlite3.Error as e:
+            print(e.sqlite_errorcode)
+            return False
+
+    def hasPolylinesTable(self):
+        return self.table_exists("polylines")
+
+    def hasPointsTable(self):
+        return self.table_exists("points")
+
+    def hasSurfacesTable(self):
+        return self.table_exists("surfaces")
+
+    def hasRoutesTable(self):
+        return self.table_exists("routes")
+
+    def hasTonnesTable(self):
+        return self.table_exists("tonnes")
+
+    def hasRoutesTonnesTable(self):
+        return self.table_exists("routes_tonnes")
+
+    # -------------------------------------------------------------------------
+    # Gradient Helper
+    # -------------------------------------------------------------------------
+
+    @staticmethod
+    def _compute_gradient(current, previous):
+        """Return gradient (%) between two (x, y, z) points, or 0.0 for the first point."""
+        if previous is None:
+            return 0.0
+        prev_x, prev_y, prev_z = previous[:3]
+        x, y, z = current[:3]
+        delta_z = z - prev_z
+        distance = math.sqrt((x - prev_x) ** 2 + (y - prev_y) ** 2)
+        return (delta_z / distance) * 100 if distance != 0 else 0.0
+
+    # -------------------------------------------------------------------------
+    # Polylines — Read
+    # -------------------------------------------------------------------------
 
     def polylines_read_xyz_file(self):
-        """reads the xyz file and stores polylines with gradient values (multiplied by 100)."""
-        polylines = {}
-        polylines[self.polyline_id] = []
+        """Read an XYZ file and return polylines with computed gradient values."""
+        polylines = {self.polyline_id: []}
 
         with open(self.file_path, "r") as file:
             for line in file:
                 line = line.strip()
                 if line == "$":
-                    self.polyline_id += 1  # start a new polyline
+                    self.polyline_id += 1
                     polylines[self.polyline_id] = []
                 else:
                     parts = line.split()
                     if len(parts) == 3:
-                        x, y, z = map(
-                            lambda v: round(float(v), 3), parts
-                        )  # round to 3 decimals
+                        x, y, z = (round(float(v), 3) for v in parts)
+                        prev = polylines[self.polyline_id][-1] if polylines[self.polyline_id] else None
+                        gradient = round(self._compute_gradient((x, y, z), prev), 3)
+                        polylines[self.polyline_id].append((x, y, z, gradient, None, None))
 
-                        # compute gradient
-                        if not polylines[self.polyline_id]:  # first point in polyline
-                            gradient = 0.0
-                        else:
-                            prev_x, prev_y, prev_z, *_ = polylines[self.polyline_id][-1]
-                            delta_z = z - prev_z
-                            distance = math.sqrt((x - prev_x) ** 2 + (y - prev_y) ** 2)
-                            gradient = (delta_z / distance) * 100 if distance != 0 else 0.0  # multiply by 100
-
-                        # append the point with gradient
-                        polylines[self.polyline_id].append((x, y, z, round(gradient, 3), None, None))  # round gradient to 3 decimals
-
-        # remove empty polylines
-        polylines = {k: v for k, v in polylines.items() if v}
-        return polylines
+        return {k: v for k, v in polylines.items() if v}
 
     def polylines_read_csv_file(self):
-        """reads the csv file and stores polylines with gradient values (multiplied by 100)."""
-        polylines = {}
-        polylines[self.polyline_id] = []
+        """Read a CSV file and return polylines with computed gradient values."""
+        polylines = {self.polyline_id: []}
 
         with open(self.file_path, "r") as file:
             for line in file:
                 line = line.strip()
                 if line == "$":
-                    self.polyline_id += 1  # start a new polyline
+                    self.polyline_id += 1
                     polylines[self.polyline_id] = []
                 else:
                     parts = line.split(",")
                     if len(parts) == 4:
                         name, *xyz = parts
-                        x, y, z = map(
-                            lambda v: round(float(v), 3), xyz
-                        )  # round to 3 decimals
+                        x, y, z = (round(float(v), 3) for v in xyz)
+                        prev = polylines[self.polyline_id][-1] if polylines[self.polyline_id] else None
+                        gradient = round(self._compute_gradient((x, y, z), prev), 3)
+                        polylines[self.polyline_id].append((x, y, z, gradient, name, None))
 
-                        # compute gradient
-                        if not polylines[self.polyline_id]:  # first point in polyline
-                            gradient = 0.0
-                        else:
-                            prev_x, prev_y, prev_z, *_ = polylines[self.polyline_id][-1]
-                            delta_z = z - prev_z
-                            distance = math.sqrt((x - prev_x) ** 2 + (y - prev_y) ** 2)
-                            gradient = (delta_z / distance) * 100 if distance != 0 else 0.0  # multiply by 100
-
-                        # append the point with gradient
-                        polylines[self.polyline_id].append((x, y, z, round(gradient, 3), name, None))  # round gradient to 3 decimals
-
-        # remove empty polylines
-        polylines = {k: v for k, v in polylines.items() if v}
-        return polylines
+        return {k: v for k, v in polylines.items() if v}
 
     def polylines_read_table(self):
         """Fetch polylines grouped by polyline_id from the SQLite database."""
-        conn = sqlite3.connect(self.file_path)
+        conn = self._connect()
         cursor = conn.cursor()
-
         cursor.execute(
             """
             SELECT polyline_id, X, Y, Z, gradient, route, tonne,
@@ -145,76 +162,72 @@ class i3model:
                 "rimpull",
                 "retardo",
                 "consumo de combustible"
-                FROM polylines ORDER BY polyline_id, point_id
-            """)
+            FROM polylines ORDER BY polyline_id, point_id
+            """
+        )
         data = cursor.fetchall()
-
         conn.close()
 
         polylines = {}
         for polyline_id, x, y, z, g, *rest in data:
-            if polyline_id not in polylines:
-                polylines[polyline_id] = []
-            polylines[polyline_id].append((x, y, z, g, *rest))
+            polylines.setdefault(polyline_id, []).append((x, y, z, g, *rest))
         return polylines
 
-    def surfaces_read_table(self):
-        """Fetch surfaces grouped by surface_id from the SQLite database."""
-        conn = sqlite3.connect(self.file_path)
-        cursor = conn.cursor()
+    def polylines_reread_table(self):
+        polylines = self.polylines_read_table()
+        if polylines:
+            self.polylines.update(polylines)
 
-        cursor.execute(
-            """
-            SELECT surface_id, X, Y, Z
-                FROM surfaces ORDER BY surface_id, point_id
-            """)
-        data = cursor.fetchall()
+    # -------------------------------------------------------------------------
+    # Polylines — Actors
+    # -------------------------------------------------------------------------
 
-        conn.close()
+    def polylines_format_actors(self, fileType):
+        """Read polylines from the appropriate source and return VTK actors."""
+        readers = {
+            FileType.DB:  self.polylines_read_table,
+            FileType.XYZ: self.polylines_read_xyz_file,
+            FileType.CSV: self.polylines_read_csv_file,
+        }
+        reader = readers.get(fileType)
+        if reader is None:
+            return []
 
-        surfaces = {}
-        for surface_id, x, y, z in data:
-            if surface_id not in surfaces:
-                surfaces[surface_id] = []
-            surfaces[surface_id].append((x, y, z))
-        return surfaces
+        polylines = reader()
+        if polylines:
+            self.polylines.update(polylines)
+        return self.polylines_create_actors()
 
     def polylines_create_actors(self):
-        """Creates separate VTK actors for each polyline in self.polylines."""
+        """Create and return a VTK actor for every polyline in self.polylines."""
         self.actors = []
-
         for polyline_id, vertices in self.polylines.items():
             actor = self.polylines_create_actor(polyline_id, vertices)
             if actor:
                 self.actors.append(actor)
-
         return self.actors
 
     def polylines_create_actor(self, polyline_id, vertices):
-        """Creates a VTK actor for a given polyline."""
+        """Create a VTK actor for a single polyline."""
         if not vertices:
-            return None  # Ignore empty polylines
+            return None
 
         points = vtk.vtkPoints()
         cells = vtk.vtkCellArray()
         polyline = vtk.vtkPolyLine()
         polyline.GetPointIds().SetNumberOfIds(len(vertices))
 
-        # Generate and store a random color for this polyline
         color = [random.randint(0, 255) / 255.0 for _ in range(3)]
 
-        # Insert points and define polyline connectivity
         for i, (x, y, z, *_) in enumerate(vertices):
-            point_id = points.InsertNextPoint(x, y, z)
-            polyline.GetPointIds().SetId(i, point_id)
+            pid = points.InsertNextPoint(x, y, z)
+            polyline.GetPointIds().SetId(i, pid)
 
         cells.InsertNextCell(polyline)
-
-        # Create and configure polyline actor
         return self.polylines_build_actor(points, cells, color, polyline_id)
 
     def polylines_build_actor(self, points, cells, color, polyline_id):
-        """Helper function to construct and return a VTK actor."""
+        """Construct and return a VTK actor for a polyline."""
         poly_data = vtk.vtkPolyData()
         poly_data.SetPoints(points)
         poly_data.SetLines(cells)
@@ -231,41 +244,12 @@ class i3model:
         setattr(actor, "color", color)
         return actor
 
-    def surfaces_save_database(self, db_path):
-        """Saves the polylines data into the SQLite database."""
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS surfaces (
-                surface_id INTEGER NOT NULL,
-                point_id INTEGER NOT NULL,
-                X REAL,
-                Y REAL,
-                Z REAL,
-                PRIMARY KEY (surface_id, point_id)
-            )
-        """
-        )
-
-        # Clear table before inserting new data
-        cursor.execute("DELETE FROM surfaces")
-
-        for surface_id, points in self.surfaces.items():
-            point_id = 1
-            for x, y, z in points:
-                cursor.execute(
-                    "INSERT INTO surfaces (surface_id, point_id, X, Y, Z) VALUES (?, ?, ?, ?, ?)",
-                    (surface_id, point_id, x, y, z),
-                )
-                point_id += 1
-
-        conn.commit()
-        conn.close()
+    # -------------------------------------------------------------------------
+    # Polylines — Save to Database
+    # -------------------------------------------------------------------------
 
     def polylines_save_database(self, db_path):
-        """Saves the polylines data into the SQLite database."""
+        """Save polyline data to the SQLite database."""
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
 
@@ -289,160 +273,135 @@ class i3model:
                 "consumo de combustible" REAL,
                 PRIMARY KEY (polyline_id, point_id)
             )
-        """
+            """
         )
-
-        # Clear table before inserting new data
         cursor.execute("DELETE FROM polylines")
 
         for polyline_id, points in self.polylines.items():
-            point_id = 1
-            for x, y, z, g, r, *_ in points:
+            for pt_idx, (x, y, z, g, r, *_) in enumerate(points, start=1):
                 cursor.execute(
-                    "INSERT INTO polylines (polyline_id, point_id, X, Y, Z, gradient, route) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                    (polyline_id, point_id, x, y, z, g, r),
+                    "INSERT INTO polylines (polyline_id, point_id, X, Y, Z, gradient, route) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (polyline_id, pt_idx, x, y, z, g, r),
                 )
-                point_id += 1
 
         conn.commit()
         conn.close()
 
-    def points_format_actors(self, fileType):
-        """Executes the full pipeline."""
-        points = None
-        if fileType == FileType.DB:
-            points = self.points_read_table()
-        elif fileType == FileType.SRG:
-            points = self.points_read_srg_file()
-        else:
-            return []
-
-        if points:
-            self.points.update(points)
-        return self.points_create_actors()
+    # -------------------------------------------------------------------------
+    # Points — Read
+    # -------------------------------------------------------------------------
 
     def points_read_srg_file(self):
-        """Reads the SRG file and store points"""
-
+        """Read an SRG file and return points."""
         points = {}
-        points[self.point_id] = []
 
-        with open(self.file_path, 'r', newline='', encoding='utf-8') as file:
+        with open(self.file_path, "r", newline="", encoding="utf-8") as file:
             reader = csv.reader(file)
-
             for row in reader:
                 if len(row) < 6:
-                    continue  # Skip invalid lines
-
+                    continue
                 try:
-                    x = float(row[0])
-                    y = float(row[1])
-                    z = float(row[2])
+                    x, y, z = float(row[0]), float(row[1]), float(row[2])
                     name = row[5]
-
                     points[self.point_id] = [(x, y, z, name)]
                     self.point_id += 1
                 except ValueError:
-                    continue  # Skip lines with conversion errors
+                    continue
+
         return points
 
     def points_read_table(self):
-        conn = sqlite3.connect(self.file_path)
+        """Fetch points from the SQLite database."""
+        conn = self._connect()
         cursor = conn.cursor()
-
-        # Query for points
         cursor.execute(
-            """
-            SELECT point_id, X, Y, Z, name
-            FROM points ORDER BY point_id
-            """
+            "SELECT point_id, X, Y, Z, name FROM points ORDER BY point_id"
         )
-
         data = cursor.fetchall()
         conn.close()
 
         points = {}
         for point_id, x, y, z, name in data:
-            if point_id not in points:
-                points[point_id] = []
-            points[point_id].append((x, y, z, name))
-
+            points.setdefault(point_id, []).append((x, y, z, name))
         return points
 
+    # -------------------------------------------------------------------------
+    # Points — Actors
+    # -------------------------------------------------------------------------
+
+    def points_format_actors(self, fileType):
+        """Read points from the appropriate source and return VTK actors."""
+        readers = {
+            FileType.DB:  self.points_read_table,
+            FileType.SRG: self.points_read_srg_file,
+        }
+        reader = readers.get(fileType)
+        if reader is None:
+            return []
+
+        points = reader()
+        if points:
+            self.points.update(points)
+        return self.points_create_actors()
 
     def points_create_actors(self):
-        """Creates separate VTK actors for each point in self.points."""
+        """Create and return a VTK actor for every point in self.points."""
         self.actors = []
-
         for point_id, vertices in self.points.items():
             actor = self.point_create_actor(point_id, vertices)
             if actor:
                 self.actors.append(actor)
-
         return self.actors
 
     def point_create_actor(self, point_id, vertices):
-        """Creates a VTK actor for a given point."""
+        """Create a VTK actor for a single point."""
         if not vertices:
-            return None  # Ignore empty points
+            return None
 
         points = vtk.vtkPoints()
         vertices_cell = vtk.vtkCellArray()
-
-        # Generate and store a random color for this point
         color = [random.randint(0, 255) / 255.0 for _ in range(3)]
-        #self.colors[point_id] = color
 
-        # Insert points
         x, y, z, _ = vertices[0]
-        vertex_id = points.InsertNextPoint(x, y, z)
+        vid = points.InsertNextPoint(x, y, z)
         vertices_cell.InsertNextCell(1)
-        vertices_cell.InsertCellPoint(vertex_id)
+        vertices_cell.InsertCellPoint(vid)
 
-        # Create and configure point actor
-        if sys.platform.startswith('win'):
+        if sys.platform.startswith("win"):
             return self.points_build_actor_win(points, vertices_cell, color, point_id)
-        else:
-            return self.points_build_actor(points, vertices_cell, color, point_id)
+        return self.points_build_actor(points, vertices_cell, color, point_id)
 
     def points_build_actor_win(self, points, vertices_cell, color, point_id):
-        # Create polydata
+        """Build a sphere-glyphed point actor for Windows."""
         poly_data = vtk.vtkPolyData()
         poly_data.SetPoints(points)
         poly_data.SetVerts(vertices_cell)
 
-        # Create a sphere source for glyphing
         sphere = vtk.vtkSphereSource()
-        sphere.SetRadius(Params.PointWinRadius.value)  # Size of each sphere
+        sphere.SetRadius(Params.PointWinRadius.value)
         sphere.SetThetaResolution(Params.PointWinTheta.value)
         sphere.SetPhiResolution(Params.PointWinPhi.value)
 
-        # Create glyph3D filter
         glyph = vtk.vtkGlyph3D()
         glyph.SetInputData(poly_data)
         glyph.SetSourceConnection(sphere.GetOutputPort())
         glyph.SetScaleModeToDataScalingOff()
 
-        # Mapper
         mapper = vtk.vtkPolyDataMapper()
         mapper.SetInputConnection(glyph.GetOutputPort())
 
-        # Actor
         actor = vtk.vtkActor()
         actor.SetMapper(mapper)
-        #actor.GetProperty().SetRepresentationToPoints()
         actor.GetProperty().SetColor(color)
         actor.GetProperty().SetPointSize(Params.PointWinSize.value)
-
-        # Custom point ID attribute
         setattr(actor, "point_id", point_id)
         setattr(actor, "color", color)
         setattr(actor, "sphere_source", sphere)
-
         return actor
 
     def points_build_actor(self, points, vertices_cell, color, point_id):
-        """Helper function to construct and return a VTK actor for points."""
+        """Build a standard point actor."""
         poly_data = vtk.vtkPolyData()
         poly_data.SetPoints(points)
         poly_data.SetVerts(vertices_cell)
@@ -455,23 +414,25 @@ class i3model:
         actor.GetProperty().SetRepresentationToPoints()
         actor.GetProperty().SetColor(color)
         actor.GetProperty().SetPointSize(Params.PointSize.value)
-        actor.GetProperty().RenderPointsAsSpheresOn()  # Enable circular points
-
+        actor.GetProperty().RenderPointsAsSpheresOn()
         setattr(actor, "point_id", point_id)
         setattr(actor, "color", color)
         return actor
 
     def point_select(self, actor, radius):
-        if radius:
-            # Check if the actor has a sphere_source attribute
-            if hasattr(actor, "sphere_source"):
-                sphere = getattr(actor, "sphere_source")
-                sphere.SetRadius(radius)
-                sphere.Modified()
+        """Resize a point actor's sphere glyph to the given radius."""
+        if radius and hasattr(actor, "sphere_source"):
+            sphere = getattr(actor, "sphere_source")
+            sphere.SetRadius(radius)
+            sphere.Modified()
         return actor
 
+    # -------------------------------------------------------------------------
+    # Points — Save to Database
+    # -------------------------------------------------------------------------
+
     def points_save_database(self, db_path):
-        """Saves the points data into the SQLite database."""
+        """Save point data to the SQLite database."""
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
 
@@ -486,103 +447,104 @@ class i3model:
             )
             """
         )
-
-        # Clear table before inserting new data
         cursor.execute("DELETE FROM points")
 
-        """Inserts point data into the database."""
         for point_id, vertices in self.points.items():
             for x, y, z, name in vertices:
                 cursor.execute(
-                    """
-                    INSERT INTO points (point_id, X, Y, Z, Name)
-                    VALUES (?, ?, ?, ?, ?)
-                    """,
+                    "INSERT INTO points (point_id, X, Y, Z, Name) VALUES (?, ?, ?, ?, ?)",
                     (point_id, x, y, z, name),
                 )
 
         conn.commit()
         conn.close()
 
-    def surfaces_format_actors(self, fileType):
-        """Executes the full pipeline."""
-        surfaces = None
-        if fileType == FileType.XYZS:
-            surfaces = self.surfaces_read_xyzs_file()
-        elif fileType == FileType.DB:
-            surfaces = self.surfaces_read_table()
-        else:
-            return []
-
-        if surfaces:
-            self.surfaces.update(surfaces)
-
-        return self.surfaces_create_actors()
+    # -------------------------------------------------------------------------
+    # Surfaces — Read
+    # -------------------------------------------------------------------------
 
     def surfaces_read_xyzs_file(self):
-        """reads the xyzs file and stores surfaces"""
-        surfaces = {}
-        surfaces[self.surface_id] = []
+        """Read an XYZS file and return surfaces."""
+        surfaces = {self.surface_id: []}
 
         with open(self.file_path, "r") as file:
             for line in file:
                 line = line.strip()
                 if line == "$":
-                    self.surface_id += 1  # start a new polyline
+                    self.surface_id += 1
                     surfaces[self.surface_id] = []
                 else:
                     parts = line.split()
                     if len(parts) == 3:
-                        x, y, z = map(
-                            lambda v: round(float(v), 3), parts
-                        )  # round to 3 decimals
-
-                        # append the point
+                        x, y, z = (round(float(v), 3) for v in parts)
                         surfaces[self.surface_id].append((x, y, z))
 
-        # remove empty surfaces
-        surfaces = {k: v for k, v in surfaces.items() if v}
+        return {k: v for k, v in surfaces.items() if v}
+
+    def surfaces_read_table(self):
+        """Fetch surfaces grouped by surface_id from the SQLite database."""
+        conn = self._connect()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT surface_id, X, Y, Z FROM surfaces ORDER BY surface_id, point_id"
+        )
+        data = cursor.fetchall()
+        conn.close()
+
+        surfaces = {}
+        for surface_id, x, y, z in data:
+            surfaces.setdefault(surface_id, []).append((x, y, z))
         return surfaces
 
-    def surfaces_create_actors(self):
-        """Creates separate VTK actors for each polyline in self.polylines."""
-        self.actors = []
+    # -------------------------------------------------------------------------
+    # Surfaces — Actors
+    # -------------------------------------------------------------------------
 
-        # Generate and store a random color for this polyline
-        if self.contourColor:
-            color = self.contourColor
-        else:
-            color = [random.randint(0, 255) / 255.0 for _ in range(3)]
+    def surfaces_format_actors(self, fileType):
+        """Read surfaces from the appropriate source and return VTK actors."""
+        readers = {
+            FileType.XYZS: self.surfaces_read_xyzs_file,
+            FileType.DB:   self.surfaces_read_table,
+        }
+        reader = readers.get(fileType)
+        if reader is None:
+            return []
+
+        surfaces = reader()
+        if surfaces:
+            self.surfaces.update(surfaces)
+        return self.surfaces_create_actors()
+
+    def surfaces_create_actors(self):
+        """Create and return a VTK actor for every surface in self.surfaces."""
+        self.actors = []
+        color = self.contourColor or [random.randint(0, 255) / 255.0 for _ in range(3)]
 
         for surface_id, vertices in self.surfaces.items():
             actor = self.surfaces_create_actor(surface_id, vertices, color)
             if actor:
                 self.actors.append(actor)
-
         return self.actors
 
     def surfaces_create_actor(self, surface_id, vertices, color):
-        """Creates a VTK actor for a given polyline."""
+        """Create a VTK actor for a single surface contour."""
         if not vertices:
-            return None  # Ignore empty polylines
+            return None
 
         points = vtk.vtkPoints()
         cells = vtk.vtkCellArray()
         polyline = vtk.vtkPolyLine()
         polyline.GetPointIds().SetNumberOfIds(len(vertices))
 
-        # Insert points and define polyline connectivity
         for i, (x, y, z, *_) in enumerate(vertices):
-            point_id = points.InsertNextPoint(x, y, z)
-            polyline.GetPointIds().SetId(i, point_id)
+            pid = points.InsertNextPoint(x, y, z)
+            polyline.GetPointIds().SetId(i, pid)
 
         cells.InsertNextCell(polyline)
-
-        # Create and configure polyline actor
         return self.surfaces_build_actor(points, cells, color, surface_id)
 
     def surfaces_build_actor(self, points, cells, color, surface_id):
-        """Helper function to construct and return a VTK actor."""
+        """Construct and return a VTK actor for a surface contour."""
         poly_data = vtk.vtkPolyData()
         poly_data.SetPoints(points)
         poly_data.SetLines(cells)
@@ -600,289 +562,144 @@ class i3model:
         setattr(actor, "color", color)
         return actor
 
-    def hasPolylinesTable(self):
-        return self.table_exists("polylines")
+    # -------------------------------------------------------------------------
+    # Surfaces — Save to Database
+    # -------------------------------------------------------------------------
 
-    def hasPointsTable(self):
-        return self.table_exists("points")
+    def surfaces_save_database(self, db_path):
+        """Save surface data to the SQLite database."""
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
 
-    def hasSurfacesTable(self):
-        return self.table_exists("surfaces")
-
-    def hasRoutesTable(self):
-        return self.table_exists("routes")
-
-    def hasTonnesTable(self):
-        return self.table_exists("tonnes")
-
-    def hasRoutesTonnesTable(self):
-        return self.table_exists("routes_tonnes")
-
-    def table_exists(self, table_name):
-        """
-        Check if the 'table_name' table exists in the SQLite database.
-        Returns:
-            bool: True if the 'table_name' table exists, False otherwise.
-        """
-        try:
-            # Connect to the database
-            #conn = sqlite3.connect(db_path)
-            conn = sqlite3.connect(self.file_path)
-            cursor = conn.cursor()
-
-            # Query the sqlite_master table for the specified table
-            cursor.execute(
-                """
-                SELECT name FROM sqlite_master
-                WHERE type='table' AND name=?
-                """,
-                (table_name,)
-            )
-
-            # Fetch the result
-            result = cursor.fetchone()
-
-            # Close the connection
-            conn.close()
-
-            # If result is not None, the table exists
-            return result is not None
-
-        except sqlite3.Error as e:
-            print(e.sqlite_errorcode)
-            return False
-
-    def routes_save_database(self, routes_file):
-        try:
-            # Connect to the SQLite database
-            conn = sqlite3.connect(self.file_path)
-            cursor = conn.cursor()
-
-            # Drop tables if they exist
-            cursor.execute("DROP TABLE IF EXISTS routes")
-            conn.commit()
-
-            # Create the routes table with just two columns: id_route and segments
-            cursor.execute(
-                """
-            CREATE TABLE routes (
-                route_id TEXT,
-                segments TEXT
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS surfaces (
+                surface_id INTEGER NOT NULL,
+                point_id INTEGER NOT NULL,
+                X REAL,
+                Y REAL,
+                Z REAL,
+                PRIMARY KEY (surface_id, point_id)
             )
             """
-            )
+        )
+        cursor.execute("DELETE FROM surfaces")
 
-            # Read and insert routes data, concatenating all segment columns
-            with open(routes_file, "r") as f:
-                csv_reader = csv.reader(f)
-                routes_rows = 0
-                for row in csv_reader:
-                    if not row or len(row) < 1:  # Skip empty rows
-                        continue
+        for surface_id, points in self.surfaces.items():
+            for pt_idx, (x, y, z) in enumerate(points, start=1):
+                cursor.execute(
+                    "INSERT INTO surfaces (surface_id, point_id, X, Y, Z) VALUES (?, ?, ?, ?, ?)",
+                    (surface_id, pt_idx, x, y, z),
+                )
 
-                    route_id = row[0]
+        conn.commit()
+        conn.close()
 
-                    # Concatenate remaining columns with comma as separator
-                    segments = ""
-                    if len(row) > 1:
-                        segments = ",".join(row[1:])
+    # -------------------------------------------------------------------------
+    # Surface Reconstruction
+    # -------------------------------------------------------------------------
 
-                    cursor.execute("INSERT INTO routes VALUES (?, ?)",
-                                   (route_id, segments))
-                    routes_rows += 1
+    def delaunay_reconstruction_actor(self, contour_polydata, delaunaycfg):
+        """Create a Delaunay-triangulated surface mesh from contour polydata."""
+        cleaner = vtk.vtkCleanPolyData()
+        cleaner.SetInputData(contour_polydata)
+        cleaner.SetTolerance(delaunaycfg.cleaner_tolerance)
+        cleaner.Update()
 
-            conn.commit()
+        delaunay = vtk.vtkDelaunay2D()
+        delaunay.SetInputData(cleaner.GetOutput())
+        delaunay.SetAlpha(delaunaycfg.delaunay_alpha)
+        delaunay.SetTolerance(delaunaycfg.delaunay_tolerance)
+        delaunay.SetOffset(delaunaycfg.delaunay_offset)
+        # Projection plane modes: 0=best fit, 1=XY, 2=YZ, 3=XZ
+        delaunay.SetProjectionPlaneMode(delaunaycfg.projection_plane_mode)
+        delaunay.Update()
 
-        finally:
-            # Close connection but keep the database file
-            if "conn" in locals():
-                conn.close()
+        normals = vtk.vtkPolyDataNormals()
+        normals.SetInputData(delaunay.GetOutput())
+        normals.SetFeatureAngle(delaunaycfg.feature_angle)
+        normals.ComputePointNormalsOn()
+        normals.ComputeCellNormalsOn()
+        normals.ConsistencyOn()
+        normals.SplittingOff()
+        normals.Update()
 
-    def tonnes_save_database(self, tonnes_file):
-        try:
-            # Connect to the SQLite database
-            conn = sqlite3.connect(self.file_path)
-            cursor = conn.cursor()
+        mapper = vtk.vtkPolyDataMapper()
+        mapper.SetInputData(normals.GetOutput())
 
-            # Drop tables if they exist
-            cursor.execute("DROP TABLE IF EXISTS tonnes")
-            conn.commit()
+        actor = vtk.vtkActor()
+        actor.SetMapper(mapper)
+        return actor
 
-            # Create table for tonnes data
-            cursor.execute(
-                """
-            CREATE TABLE tonnes (
-                period INTEGER,
-                route_id TEXT,
-                tonne REAL
-            )
-            """
-            )
+    def _apply_surface_properties(self, actor, surfacecfg, wireframe=False):
+        """Apply appearance properties to a Delaunay-reconstructed actor."""
+        if not hasattr(actor, "GetProperty"):
+            return
+        prop = actor.GetProperty()
+        color = surfacecfg.wireframe_color if wireframe else surfacecfg.surface_color
+        prop.SetColor(color)
+        prop.SetOpacity(surfacecfg.surface_opacity)
+        prop.SetEdgeColor(surfacecfg.wireframe_color)
+        prop.SetLineWidth(surfacecfg.edge_thickness)
+        if wireframe:
+            prop.SetEdgeVisibility(True)
+            prop.SetRepresentationToWireframe()
+        else:
+            prop.SetEdgeVisibility(False)
+            prop.SetRepresentationToSurface()
 
-            # Read and insert tonnes data
-            with open(tonnes_file, "r") as f:
-                csv_reader = csv.reader(f)
-                tonnes_rows = 0
-                for row in csv_reader:
-                    if len(row) >= 3:  # Ensure we have at least 3 columns
-                        try:
-                            # Convert period to integer and tonne to float
-                            period = int(row[0])
-                            route_id = row[1]
-                            tonne = float(row[2])
-                            cursor.execute(
-                                "INSERT INTO tonnes VALUES (?, ?, ?)",
-                                (period, route_id, tonne),
-                            )
-                            tonnes_rows += 1
-                        except ValueError:
-                            # Handle case where period or tonne can't be converted to int/float
-                            print(
-                                f"Warning: Could not convert period '{row[0]}' to integer or tonne '{row[2]}' to float. Skipping row."
-                            )
+    def surface_reconstruction_actor(self, contour_polydata, delaunaycfg, surfacecfg):
+        """Return a solid-surface actor built from contour polydata."""
+        actor = self.delaunay_reconstruction_actor(contour_polydata, delaunaycfg)
+        self._apply_surface_properties(actor, surfacecfg, wireframe=False)
+        return actor
 
-            conn.commit()
+    def wireframe_reconstruction_actor(self, contour_polydata, delaunaycfg, surfacecfg):
+        """Return a wireframe actor built from contour polydata."""
+        actor = self.delaunay_reconstruction_actor(contour_polydata, delaunaycfg)
+        self._apply_surface_properties(actor, surfacecfg, wireframe=True)
+        return actor
 
-        finally:
-            # Close connection but keep the database file
-            if "conn" in locals():
-                conn.close()
-
-    def routes_tonnes_save_database(self):
-        try:
-            # Connect to the SQLite database
-            conn = sqlite3.connect(self.file_path)
-            cursor = conn.cursor()
-
-            # Drop tables if they exist
-            cursor.execute("DROP TABLE IF EXISTS routes_tonnes")
-            conn.commit()
-
-            # Create a new table to store the joined results
-            # Create joined table - ensure proper column order and formatting
-            create_joined_sql = """
-            CREATE TABLE routes_tonnes AS
-            SELECT
-                t.period,
-                r.route_id,
-                t.tonne,
-                r.segments
-            FROM tonnes t
-            JOIN routes r ON t.route_id = r.route_id
-            ORDER BY t.period, r.route_id
-            """
-
-            cursor.execute(create_joined_sql)
-            conn.commit()
-
-        finally:
-            # Close connection but keep the database file
-            if "conn" in locals():
-                conn.close()
-
-    def hasPeriods(self):
-        try:
-            # Connect to the SQLite database
-            conn = sqlite3.connect(self.file_path)
-            cursor = conn.cursor()
-
-            # Get rows count if it exist
-            cursor.execute("SELECT count(*) FROM routes_tonnes")
-            result = cursor.fetchone()
-
-            if result:
-                return True
-            else:
-                return False
-
-        finally:
-            # Close connection but keep the database file
-            if "conn" in locals():
-                conn.close()
-
-    def getMaxPeriod(self):
-        try:
-            # Connect to the SQLite database
-            conn = sqlite3.connect(self.file_path)
-            cursor = conn.cursor()
-
-            # Get rows count if it exist
-            cursor.execute("SELECT max(period) FROM routes_tonnes")
-            result = cursor.fetchone()
-
-            if result:
-                return result[0]
-            else:
-                return 0
-
-        finally:
-            # Close connection but keep the database file
-            if "conn" in locals():
-                conn.close()
-
-    def updateRoutesTonnes(self, period):
-        try:
-            # Connect to the SQLite database
-            conn = sqlite3.connect(self.file_path)
-            cursor = conn.cursor()
-
-            # Update each polyline with the calculated total_tonnes
-            update_sql = """
-            UPDATE polylines
-            SET tonne = (
-                SELECT COALESCE(SUM(rt.tonne), 0)
-                FROM routes_tonnes rt
-                WHERE rt.period = ?
-                AND rt.segments LIKE '%' || polylines.route || '%'
-            )
-            """
-            cursor.execute(update_sql, (period,))
-            conn.commit()
-
-        finally:
-            # Close connection but keep the database file
-            if "conn" in locals():
-                conn.close()
+    # -------------------------------------------------------------------------
+    # Labels
+    # -------------------------------------------------------------------------
 
     def polylabels_create_actor(self, actor, label_text="Polyline Label"):
-        """Creates a 3D label actor at the arc-length midpoint of the polyline in a vtkActor."""
-        # Get the polydata from the actor
-
+        """Create a 3D billboard label at the arc-length midpoint of a polyline actor."""
         mapper = actor.GetMapper()
-        polyData = mapper.GetInput()
+        poly_data = mapper.GetInput()
 
-        if polyData is None:
+        if poly_data is None:
             raise ValueError("Actor does not contain polydata.")
 
-        points = polyData.GetPoints()
-        lines = polyData.GetLines()
+        points = poly_data.GetPoints()
+        lines = poly_data.GetLines()
         lines.InitTraversal()
 
-        idList = vtk.vtkIdList()
-        if not lines.GetNextCell(idList):
+        id_list = vtk.vtkIdList()
+        if not lines.GetNextCell(id_list):
             raise ValueError("No polyline found in polydata.")
 
-        n_points = idList.GetNumberOfIds()
+        n_points = id_list.GetNumberOfIds()
 
-        # Compute arc length
+        # Compute cumulative arc lengths
         arc_lengths = [0.0]
         total_length = 0.0
         for i in range(1, n_points):
-            p1 = points.GetPoint(idList.GetId(i - 1))
-            p2 = points.GetPoint(idList.GetId(i))
-            segment_length = vtk.vtkMath.Distance2BetweenPoints(p1, p2) ** 0.5
-            total_length += segment_length
+            p1 = points.GetPoint(id_list.GetId(i - 1))
+            p2 = points.GetPoint(id_list.GetId(i))
+            total_length += vtk.vtkMath.Distance2BetweenPoints(p1, p2) ** 0.5
             arc_lengths.append(total_length)
 
         half_length = total_length / 2.0
 
-        # Find segment containing the midpoint
+        # Interpolate position at the midpoint
         midpoint = [0.0, 0.0, 0.0]
         for i in range(1, n_points):
             if arc_lengths[i] >= half_length:
+                p1 = points.GetPoint(id_list.GetId(i - 1))
+                p2 = points.GetPoint(id_list.GetId(i))
                 denom = arc_lengths[i] - arc_lengths[i - 1]
-                p1 = points.GetPoint(idList.GetId(i - 1))
-                p2 = points.GetPoint(idList.GetId(i))
                 if denom == 0.0:
                     midpoint = list(p1)
                 else:
@@ -890,128 +707,157 @@ class i3model:
                     midpoint = [p1[j] + t * (p2[j] - p1[j]) for j in range(3)]
                 break
 
-        # Create label actor
         label = vtk.vtkBillboardTextActor3D()
         label.SetInput(label_text)
         label.SetPosition(midpoint)
         label.GetTextProperty().SetFontSize(int(Params.PolylabelFontSize.value))
         label.GetTextProperty().SetColor(Params.PolylabelColor.value)
-
         return label
 
     def pointlabels_create_actor(self, actor, label_text="Point Label"):
-        """Creates a label at the first point in the vtkActor's geometry."""
+        """Create a 3D billboard label at the position of a point actor."""
         mapper = actor.GetMapper()
-        polyData = mapper.GetInput()
+        poly_data = mapper.GetInput()
 
-        if polyData is None or polyData.GetNumberOfPoints() == 0:
-            return
-            #raise ValueError("Actor does not contain valid point data.")
+        if poly_data is None or poly_data.GetNumberOfPoints() == 0:
+            return None
 
-        # Use the first point for labeling
-        point = polyData.GetPoint(0)
-
-        # Create the text label
         label = vtk.vtkBillboardTextActor3D()
         label.SetInput(label_text)
-        label.SetPosition(point)
+        label.SetPosition(poly_data.GetPoint(0))
         label.GetTextProperty().SetFontSize(int(Params.PointlabelFontSize.value))
-        label.GetTextProperty().SetColor(Params.PointlabelColor.value)  # Yellow
-
+        label.GetTextProperty().SetColor(Params.PointlabelColor.value)
         return label
 
-    def delaunay_reconstruction_actor(self, contour_polydata, delaunaycfg):
-        """
-        Creates a surface mesh from contour lines using Delaunay triangulation.
+    # -------------------------------------------------------------------------
+    # Routes & Tonnes Database
+    # -------------------------------------------------------------------------
 
-        Parameters:
-        contour_polydata: vtkPolyData containing contour lines with elevation data
+    def routes_save_database(self, routes_file):
+        """Import a CSV routes file into the SQLite database."""
+        try:
+            conn = self._connect()
+            cursor = conn.cursor()
 
-        Returns:
-        vtkPolyData representing the triangulated surface
-        """
-        # Step 1: Clean the input data to remove duplicates and ensure consistency
-        cleaner = vtk.vtkCleanPolyData()
-        cleaner.SetInputData(contour_polydata)
-        cleaner.SetTolerance(delaunaycfg.cleaner_tolerance)  # Points within this distance are merged
-        cleaner.Update()
+            cursor.execute("DROP TABLE IF EXISTS routes")
+            conn.commit()
+            cursor.execute(
+                "CREATE TABLE routes (route_id TEXT, segments TEXT)"
+            )
 
-        clean_polydata = cleaner.GetOutput()
+            with open(routes_file, "r") as f:
+                for row in csv.reader(f):
+                    if not row:
+                        continue
+                    route_id = row[0]
+                    segments = ",".join(row[1:]) if len(row) > 1 else ""
+                    cursor.execute(
+                        "INSERT INTO routes VALUES (?, ?)", (route_id, segments))
 
-        # Step 2: Configure and run the Delaunay triangulation
-        delaunay = vtk.vtkDelaunay2D()
-        delaunay.SetInputData(clean_polydata)
+            conn.commit()
+        finally:
+            if "conn" in locals():
+                conn.close()
 
-        # Critical parameters:
-        delaunay.SetAlpha(delaunaycfg.delaunay_alpha)  # 0.0 gives standard Delaunay, higher values create a more constrained triangulation
-        delaunay.SetTolerance(delaunaycfg.delaunay_tolerance)  # Controls point merging during triangulation
-        delaunay.SetOffset(delaunaycfg.delaunay_offset)  # Controls bounding triangle size for non-convex inputs
+    def tonnes_save_database(self, tonnes_file):
+        """Import a CSV tonnes file into the SQLite database."""
+        try:
+            conn = self._connect()
+            cursor = conn.cursor()
 
-        # Projection plane settings:
-        # 0 = best fitting plane
-        # 1 = XY plane
-        # 2 = YZ plane
-        # 3 = XZ plane
-        delaunay.SetProjectionPlaneMode(delaunaycfg.projection_plane_mode)
+            cursor.execute("DROP TABLE IF EXISTS tonnes")
+            conn.commit()
+            cursor.execute(
+                "CREATE TABLE tonnes (period INTEGER, route_id TEXT, tonne REAL)"
+            )
 
-        delaunay.Update()
+            with open(tonnes_file, "r") as f:
+                for row in csv.reader(f):
+                    if len(row) < 3:
+                        continue
+                    try:
+                        period = int(row[0])
+                        route_id = row[1]
+                        tonne = float(row[2])
+                        cursor.execute(
+                            "INSERT INTO tonnes VALUES (?, ?, ?)",
+                            (period, route_id, tonne),
+                        )
+                    except ValueError:
+                        print(
+                            f"Warning: Could not parse period '{row[0]}' or "
+                            f"tonne '{row[2]}'. Skipping row."
+                        )
 
-        # Step 3: Transform the triangulation to retain original Z values
-        mesh = delaunay.GetOutput()
+            conn.commit()
+        finally:
+            if "conn" in locals():
+                conn.close()
 
-        # Optional: Transform mesh if needed for your coordinate system
+    def routes_tonnes_save_database(self):
+        """Create the routes_tonnes joined table in the SQLite database."""
+        try:
+            conn = self._connect()
+            cursor = conn.cursor()
 
-        # Step 4: Compute normals for proper shading
-        normals = vtk.vtkPolyDataNormals()
-        normals.SetInputData(mesh)
-        normals.SetFeatureAngle(delaunaycfg.feature_angle)  # Angle to separate smooth regions
-        normals.ComputePointNormalsOn()
-        normals.ComputeCellNormalsOn()
-        normals.ConsistencyOn()
-        normals.SplittingOff()  # Turn on if you want sharp features
-        normals.Update()
+            cursor.execute("DROP TABLE IF EXISTS routes_tonnes")
+            conn.commit()
+            cursor.execute(
+                """
+                CREATE TABLE routes_tonnes AS
+                SELECT t.period, r.route_id, t.tonne, r.segments
+                FROM tonnes t
+                JOIN routes r ON t.route_id = r.route_id
+                ORDER BY t.period, r.route_id
+                """
+            )
+            conn.commit()
+        finally:
+            if "conn" in locals():
+                conn.close()
 
-        elevation_mesh = normals.GetOutput()
+    def hasPeriods(self):
+        """Return True if the routes_tonnes table has at least one row."""
+        try:
+            conn = self._connect()
+            cursor = conn.cursor()
+            cursor.execute("SELECT count(*) FROM routes_tonnes")
+            result = cursor.fetchone()
+            return bool(result)
+        finally:
+            if "conn" in locals():
+                conn.close()
 
-        # Visualize the result
-        mapper = vtk.vtkPolyDataMapper()
-        mapper.SetInputData(elevation_mesh)
-        #mapper.SetInputData(mesh)
+    def getMaxPeriod(self):
+        """Return the maximum period value in the routes_tonnes table."""
+        try:
+            conn = self._connect()
+            cursor = conn.cursor()
+            cursor.execute("SELECT max(period) FROM routes_tonnes")
+            result = cursor.fetchone()
+            return result[0] if result else 0
+        finally:
+            if "conn" in locals():
+                conn.close()
 
-        actor = vtk.vtkActor()
-        actor.SetMapper(mapper)
-
-        return actor
-
-    def surface_reconstruction_actor(self, contour_polydata, delaunaycfg, surfacecfg):
-        actor = self.delaunay_reconstruction_actor(contour_polydata, delaunaycfg)
-        surface_color = surfacecfg.surface_color
-        wireframe_color= surfacecfg.wireframe_color
-        surface_opacity = surfacecfg.surface_opacity
-        edge_thickness= surfacecfg.edge_thickness
-        if hasattr(actor, 'GetProperty'):
-            property = getattr(actor, 'GetProperty')()
-            property.SetColor(surface_color)
-            property.SetOpacity(surface_opacity)
-            property.SetEdgeVisibility(False)
-            property.SetEdgeColor(wireframe_color)
-            property.SetLineWidth(edge_thickness)
-            property.SetRepresentationToSurface()
-        return actor
-
-    def wireframe_reconstruction_actor(self, contour_polydata, delaunaycfg, surfacecfg):
-        actor = self.delaunay_reconstruction_actor(contour_polydata, delaunaycfg)
-        surface_color = surfacecfg.surface_color
-        wireframe_color= surfacecfg.wireframe_color
-        surface_opacity = surfacecfg.surface_opacity
-        edge_thickness= surfacecfg.edge_thickness
-        if hasattr(actor, 'GetProperty'):
-            property = getattr(actor, 'GetProperty')()
-            surface_color = wireframe_color
-            property.SetColor(surface_color)
-            property.SetOpacity(surface_opacity)
-            property.SetEdgeVisibility(True)
-            property.SetEdgeColor(wireframe_color)
-            property.SetLineWidth(edge_thickness)
-            property.SetRepresentationToWireframe()
-        return actor
+    def updateRoutesTonnes(self, period):
+        """Update the tonne column in polylines for the given period."""
+        try:
+            conn = self._connect()
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                UPDATE polylines
+                SET tonne = (
+                    SELECT COALESCE(SUM(rt.tonne), 0)
+                    FROM routes_tonnes rt
+                    WHERE rt.period = ?
+                    AND rt.segments LIKE '%' || polylines.route || '%'
+                )
+                """,
+                (period,),
+            )
+            conn.commit()
+        finally:
+            if "conn" in locals():
+                conn.close()
