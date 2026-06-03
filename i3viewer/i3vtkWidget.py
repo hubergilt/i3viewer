@@ -26,6 +26,7 @@ class i3vtkWidget(QWidget):
 
         self.actors = []
         self.contourActors = []
+        self.contourActorsMap = {}
         self.selected_actor = None
         self.surfaceActor = None
         self.wireframeActor = None
@@ -71,17 +72,13 @@ class i3vtkWidget(QWidget):
             self.model.polyline_id = 1
             self.model.point_id = 1
             self.model.surface_id = 1
-        else:
-            if self.surfaceActor and self.surfaceActor in self.actors:
-                self.actors.remove(self.surfaceActor)
-            if self.wireframeActor and self.wireframeActor in self.actors:
-                self.actors.remove(self.wireframeActor)
-            self.RemoveSurfaceActor()
-            self.RemoveWireframeActor()
+            self.model.surface_file_id = 1
 
         cfg = (self.delaunaycfg, self.surfacecfg) \
             if (self.delaunaycfg and self.surfacecfg) \
             else (DelaunayCfg(), SurfaceCfg())
+
+        existing_count = len(self.actors)
 
         if fileType == FileType.DB:
             if self.model.hasPointsTable():
@@ -89,13 +86,25 @@ class i3vtkWidget(QWidget):
             if self.model.hasPolylinesTable():
                 self.actors.extend(self.model.polylines_format_actors(fileType))
             if self.model.hasSurfacesTable():
+                existing_contour_count = len(self.contourActors)
                 self.contourActors.extend(self.model.surfaces_format_actors(fileType))
-                self.surfaceActor = self.surface_reconstruction_actor(fileType, *cfg)
+                new_contour_actors = self.contourActors[existing_contour_count:]
+                self.contourActorsMap[self.model.surface_file_id] = new_contour_actors
+                for actor in new_contour_actors:
+                    self.AddActor(actor)
+                self.surfaceActor = self.surface_reconstruction_actor(
+                    fileType, *cfg, contour_actors=new_contour_actors)
                 if self.surfaceActor:
+                    self.surfaceActor.surface_file_id = self.model.surface_file_id
+                    self.surfaceActor.actor_type = "surface"
                     self.actors.append(self.surfaceActor)
-                self.wireframeActor = self.wireframe_reconstruction_actor(fileType, *cfg)
+                self.wireframeActor = self.wireframe_reconstruction_actor(
+                    fileType, *cfg, contour_actors=new_contour_actors)
                 if self.wireframeActor:
+                    self.wireframeActor.surface_file_id = self.model.surface_file_id
+                    self.wireframeActor.actor_type = "wireframe"
                     self.actors.append(self.wireframeActor)
+                self.model.surface_file_id += 1
 
         elif fileType in (FileType.XYZ, FileType.CSV):
             self.actors.extend(self.model.polylines_format_actors(fileType))
@@ -106,18 +115,30 @@ class i3vtkWidget(QWidget):
             self.pointlabels_create_actors(fileType)
 
         elif fileType == FileType.XYZS:
+            existing_contour_count = len(self.contourActors)
             self.contourActors.extend(self.model.surfaces_format_actors(fileType))
-            self.surfaceActor = self.surface_reconstruction_actor(fileType, *cfg)
+            new_contour_actors = self.contourActors[existing_contour_count:]
+            self.contourActorsMap[self.model.surface_file_id] = new_contour_actors
+            for actor in new_contour_actors:
+                self.AddActor(actor)
+            self.surfaceActor = self.surface_reconstruction_actor(
+                fileType, *cfg, contour_actors=new_contour_actors)
             if self.surfaceActor:
+                self.surfaceActor.surface_file_id = self.model.surface_file_id
+                self.surfaceActor.actor_type = "surface"
                 self.actors.append(self.surfaceActor)
-            self.wireframeActor = self.wireframe_reconstruction_actor(fileType, *cfg)
+            self.wireframeActor = self.wireframe_reconstruction_actor(
+                fileType, *cfg, contour_actors=new_contour_actors)
             if self.wireframeActor:
+                self.wireframeActor.surface_file_id = self.model.surface_file_id
+                self.wireframeActor.actor_type = "wireframe"
                 self.actors.append(self.wireframeActor)
+            self.model.surface_file_id += 1
 
-        for actor in self.actors:
+        for actor in self.actors[existing_count:]:
             self.AddActor(actor)
 
-        self.UpdateView()
+        self.UpdateView(resetCamera=newFile)
 
     # -------------------------------------------------------------------------
     # Actor Lookup
@@ -144,6 +165,73 @@ class i3vtkWidget(QWidget):
                 return actor
         return None
 
+    def surfaces_get_surface_actor(self, surface_file_id):
+        """Return the surface actor for the given surface_file_id, or None."""
+        for actor in self.actors:
+            if (hasattr(actor, "surface_file_id")
+                    and actor.surface_file_id == surface_file_id
+                    and hasattr(actor, "actor_type")
+                    and actor.actor_type == "surface"):
+                return actor
+        return None
+
+    def surfaces_get_wireframe_actor(self, surface_file_id):
+        """Return the wireframe actor for the given surface_file_id, or None."""
+        for actor in self.actors:
+            if (hasattr(actor, "surface_file_id")
+                    and actor.surface_file_id == surface_file_id
+                    and hasattr(actor, "actor_type")
+                    and actor.actor_type == "wireframe"):
+                return actor
+        return None
+
+    def surfaces_get_polydata(self, surface_file_id):
+        """Return the vtkPolyData from the surface actor for the given surface_file_id."""
+        actor = self.surfaces_get_surface_actor(surface_file_id)
+        if actor is None:
+            return None
+        mapper = actor.GetMapper()
+        if mapper is None:
+            return None
+        return mapper.GetInput()
+
+    def surface_difference(self, fid_b):
+        """Replace the first surface actor with the result of A minus B.
+
+        A is always surface_file_id=1 (the master/accumulator).
+        B is the surface identified by fid_b.
+        The result is stored back under fid_a=1 so further subtractions
+        continue to accumulate on the same slot.
+        """
+        fid_a = 1
+        polydata_a = self.surfaces_get_polydata(fid_a)
+        polydata_b = self.surfaces_get_polydata(fid_b)
+
+        if polydata_a is None or polydata_b is None:
+            return False
+
+        new_actor = self.model.surface_difference_actor(
+            polydata_a, polydata_b, self.surfacecfg)
+
+        if new_actor is None:
+            return False
+
+        # Remove old A actor from renderer and actors list
+        old_actor = self.surfaces_get_surface_actor(fid_a)
+        if old_actor:
+            self.RemoveActor(old_actor)
+            self.actors.remove(old_actor)
+
+        # Stamp and register the new actor under fid_a
+        new_actor.surface_file_id = fid_a
+        new_actor.actor_type = "surface"
+        self.actors.append(new_actor)
+        self.AddActor(new_actor)
+        self.surfaceActor = new_actor
+
+        self.UpdateView(False)
+        return True
+
     # -------------------------------------------------------------------------
     # Actor Management
     # -------------------------------------------------------------------------
@@ -157,6 +245,7 @@ class i3vtkWidget(QWidget):
         self.RemoveWireframeActor()
         self.RemoveScaleBarActor()
         self.contourActors = []
+        self.contourActorsMap = {}
         self.UpdateView()
         if self.model:
             self.model.RemoveAllActors()
@@ -752,10 +841,29 @@ class i3vtkWidget(QWidget):
         if self.wireframeActor:
             self.RemoveActor(self.wireframeActor)
 
-    def _build_contour_polydata(self, fileType):
+    def SetVisibilitySurfaceActor(self, surface_file_id, visible):
+        """Show or hide the surface actor for the given surface_file_id."""
+        actor = self.surfaces_get_surface_actor(surface_file_id)
+        if actor:
+            actor.SetVisibility(1 if visible else 0)
+
+    def SetVisibilityWireframeActor(self, surface_file_id, visible):
+        """Show or hide the wireframe actor for the given surface_file_id."""
+        actor = self.surfaces_get_wireframe_actor(surface_file_id)
+        if actor:
+            actor.SetVisibility(1 if visible else 0)
+
+    def SetVisibilityContourActors(self, surface_file_id, visible):
+        """Show or hide all contour actors for the given surface_file_id."""
+        for actor in self.contourActorsMap.get(surface_file_id, []):
+            actor.SetVisibility(1 if visible else 0)
+
+    def _build_contour_polydata(self, fileType, contour_actors=None):
         """Combine surface actor poly data into a single vtkPolyData."""
+        if contour_actors is None:
+            contour_actors = self.contourActors
         append = vtk.vtkAppendPolyData()
-        for actor in self.contourActors:
+        for actor in contour_actors:
             mapper = actor.GetMapper()
             if mapper:
                 poly_data = mapper.GetInput()
@@ -765,30 +873,55 @@ class i3vtkWidget(QWidget):
         append.Update()
         return append.GetOutput()
 
-    def surface_reconstruction_actor(self, fileType, delaunaycfg, surfacecfg):
+    def surface_reconstruction_actor(self, fileType, delaunaycfg, surfacecfg,
+                                      contour_actors=None):
         if not self.model:
             return None
-        contour_polydata = self._build_contour_polydata(fileType)
+        contour_polydata = self._build_contour_polydata(fileType, contour_actors)
         return self.model.surface_reconstruction_actor(
             contour_polydata, delaunaycfg, surfacecfg)
 
-    def wireframe_reconstruction_actor(self, fileType, delaunaycfg, surfacecfg):
+    def wireframe_reconstruction_actor(self, fileType, delaunaycfg, surfacecfg,
+                                        contour_actors=None):
         if not self.model:
             return None
-        contour_polydata = self._build_contour_polydata(fileType)
+        contour_polydata = self._build_contour_polydata(fileType, contour_actors)
         return self.model.wireframe_reconstruction_actor(
             contour_polydata, delaunaycfg, surfacecfg)
 
     def UpdateSurface(self, fileType):
         cfg = self.delaunaycfg, self.surfacecfg
 
-        self.RemoveSurfaceActor()
-        self.surfaceActor = self.surface_reconstruction_actor(fileType, *cfg)
-        self.AddSurfaceActor()
+        for fid, contour_actors in self.contourActorsMap.items():
+            # Remove and replace surface actor for this file
+            old_surface = self.surfaces_get_surface_actor(fid)
+            if old_surface:
+                self.RemoveActor(old_surface)
+                self.actors.remove(old_surface)
 
-        self.RemoveWireframeActor()
-        self.wireframeActor = self.wireframe_reconstruction_actor(fileType, *cfg)
-        self.AddWireframeActor()
+            new_surface = self.surface_reconstruction_actor(
+                fileType, *cfg, contour_actors=contour_actors)
+            if new_surface:
+                new_surface.surface_file_id = fid
+                new_surface.actor_type = "surface"
+                self.actors.append(new_surface)
+                self.AddActor(new_surface)
+                self.surfaceActor = new_surface
+
+            # Remove and replace wireframe actor for this file
+            old_wireframe = self.surfaces_get_wireframe_actor(fid)
+            if old_wireframe:
+                self.RemoveActor(old_wireframe)
+                self.actors.remove(old_wireframe)
+
+            new_wireframe = self.wireframe_reconstruction_actor(
+                fileType, *cfg, contour_actors=contour_actors)
+            if new_wireframe:
+                new_wireframe.surface_file_id = fid
+                new_wireframe.actor_type = "wireframe"
+                self.actors.append(new_wireframe)
+                self.AddActor(new_wireframe)
+                self.wireframeActor = new_wireframe
 
     # -------------------------------------------------------------------------
     # Utilities

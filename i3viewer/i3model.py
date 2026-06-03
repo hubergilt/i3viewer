@@ -27,6 +27,7 @@ class i3model:
         self.polyline_id = 1
         self.point_id = 1
         self.surface_id = 1
+        self.surface_file_id = 1
         self.polylabel_id = 1
         self.pointlabel_id = 1
 
@@ -43,6 +44,7 @@ class i3model:
         self.polyline_id = 1
         self.point_id = 1
         self.surface_id = 1
+        self.surface_file_id = 1
         self.polylabel_id = 1
         self.pointlabel_id = 1
 
@@ -501,7 +503,7 @@ class i3model:
     # -------------------------------------------------------------------------
 
     def surfaces_format_actors(self, fileType):
-        """Read surfaces from the appropriate source and return VTK actors."""
+        """Read surfaces from the appropriate source and return VTK actors for the new file only."""
         readers = {
             FileType.XYZS: self.surfaces_read_xyzs_file,
             FileType.DB:   self.surfaces_read_table,
@@ -513,18 +515,18 @@ class i3model:
         surfaces = reader()
         if surfaces:
             self.surfaces.update(surfaces)
-        return self.surfaces_create_actors()
+        return self.surfaces_create_new_actors(surfaces)
 
-    def surfaces_create_actors(self):
-        """Create and return a VTK actor for every surface in self.surfaces."""
-        self.actors = []
+    def surfaces_create_new_actors(self, surfaces):
+        """Create and return VTK actors only for the surfaces in the given dict."""
+        actors = []
         color = self.contourColor or [random.randint(0, 255) / 255.0 for _ in range(3)]
 
-        for surface_id, vertices in self.surfaces.items():
+        for surface_id, vertices in surfaces.items():
             actor = self.surfaces_create_actor(surface_id, vertices, color)
             if actor:
-                self.actors.append(actor)
-        return self.actors
+                actors.append(actor)
+        return actors
 
     def surfaces_create_actor(self, surface_id, vertices, color):
         """Create a VTK actor for a single surface contour."""
@@ -658,6 +660,67 @@ class i3model:
         """Return a wireframe actor built from contour polydata."""
         actor = self.delaunay_reconstruction_actor(contour_polydata, delaunaycfg)
         self._apply_surface_properties(actor, surfacecfg, wireframe=True)
+        return actor
+
+    def surface_difference_actor(self, polydata_a, polydata_b, surfacecfg):
+        """Return a new actor representing surface A with the region overlapping B removed.
+
+        For each boundary loop of B, clips A using vtkImplicitSelectionLoop
+        keeping only the part of A outside that loop. Multiple loops are handled
+        by chaining clips sequentially. Works on open 2.5D Delaunay meshes —
+        no closed volume or consistent normals required.
+        """
+        # Extract boundary edges of B
+        feature_edges = vtk.vtkFeatureEdges()
+        feature_edges.SetInputData(polydata_b)
+        feature_edges.BoundaryEdgesOn()
+        feature_edges.FeatureEdgesOff()
+        feature_edges.ManifoldEdgesOff()
+        feature_edges.NonManifoldEdgesOff()
+        feature_edges.Update()
+
+        # Join boundary edge segments into continuous closed polylines
+        stripper = vtk.vtkStripper()
+        stripper.SetInputConnection(feature_edges.GetOutputPort())
+        stripper.JoinContiguousSegmentsOn()
+        stripper.Update()
+        loops = stripper.GetOutput()
+
+        if loops.GetNumberOfCells() == 0:
+            return None
+
+        # Clip A sequentially against each boundary loop of B
+        current = polydata_a
+        for i in range(loops.GetNumberOfCells()):
+            cell = loops.GetCell(i)
+            loop_pts = vtk.vtkPoints()
+            for j in range(cell.GetNumberOfPoints()):
+                pid = cell.GetPointId(j)
+                loop_pts.InsertNextPoint(loops.GetPoint(pid))
+
+            sel_loop = vtk.vtkImplicitSelectionLoop()
+            sel_loop.SetLoop(loop_pts)
+            sel_loop.AutomaticNormalGenerationOn()
+
+            clip = vtk.vtkClipPolyData()
+            clip.SetInputData(current)
+            clip.SetClipFunction(sel_loop)
+            clip.InsideOutOff()
+            clip.Update()
+            current = clip.GetOutput()
+
+            if current.GetNumberOfPoints() == 0:
+                return None
+
+        if current.GetNumberOfPoints() == 0:
+            return None
+
+        mapper = vtk.vtkPolyDataMapper()
+        mapper.SetInputData(current)
+
+        actor = vtk.vtkActor()
+        actor.SetMapper(mapper)
+        self._apply_surface_properties(actor, surfacecfg, wireframe=False)
         return actor
 
     # -------------------------------------------------------------------------

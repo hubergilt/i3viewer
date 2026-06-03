@@ -96,8 +96,8 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         self.tableModelPoints = None
         self.polyline_idx = 1
         self.point_idx = 1
-        self.surface_idx = 1
         self.contours = 0
+        self.selected_surface_file_id = None
 
         self.header_label = ""
         self.currentPeriod = 1
@@ -298,6 +298,9 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         self.treeview_setup()
         self.tableview_release()
         self._show_import_status()
+        # Auto-select the first surface file when only one is loaded
+        if self.vtkWidget.model.surface_file_id == 2:
+            self.selected_surface_file_id = 1
 
     def open_srg_file(self, openNew=True):
         """Open an SRG file for point data."""
@@ -389,6 +392,8 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         self.tree_model.appendRow(root_item)
         self.tree_model.setHorizontalHeaderLabels([self.header_label])
         self.treeView.setModel(self.tree_model)
+        self.treeView.selectionModel().selectionChanged.connect(
+            self.on_tree_selection_changed)
         if hasattr(QTreeView, "NoEditTriggers"):
             self.treeView.setEditTriggers(getattr(QTreeView, "NoEditTriggers"))
 
@@ -445,6 +450,8 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
 
         surface_root = QStandardItem("Surface")
         surface_root.setIcon(QIcon(":/icons/polyline.svg"))
+        setattr(surface_root, "surface_file_id",
+                self.vtkWidget.model.surface_file_id - 1)
 
         total = len(model.surfaces)
         new_contours = total - self.contours
@@ -472,6 +479,11 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         self.showAttribPoint = self.context_menu.addAction("Show Point Attributes")
         self.editAttribPoint = self.context_menu.addAction("Edit Point Attributes")
 
+        self.toggleSurfaceActor    = self.context_menu.addAction("Show/Hide Surface Actor")
+        self.toggleWireframeActor  = self.context_menu.addAction("Show/Hide Wireframe Actor")
+        self.toggleContourActors   = self.context_menu.addAction("Show/Hide Contour Actors")
+        self.surfaceDifference     = self.context_menu.addAction("Difference from the first Surface")
+
         self.selectPolyline.triggered.connect(self.on_select_polyline)
         self.unselectPolyline.triggered.connect(self.on_unselect_polyline)
         self.showAttribPolyline.triggered.connect(self.on_showAttrib_polyline)
@@ -482,6 +494,11 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         self.showAttribPoint.triggered.connect(self.on_showAttrib_point)
         self.editAttribPoint.triggered.connect(self.on_editAttrib_point)
 
+        self.toggleSurfaceActor.triggered.connect(self.on_toggle_surface_actor)
+        self.toggleWireframeActor.triggered.connect(self.on_toggle_wireframe_actor)
+        self.toggleContourActors.triggered.connect(self.on_toggle_contour_actors)
+        self.surfaceDifference.triggered.connect(self.on_surface_difference)
+
     def get_item_level(self, index):
         """Return the depth of a tree item (root = 1)."""
         level = 0
@@ -490,32 +507,66 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             level += 1
         return level
 
+    def on_tree_selection_changed(self, selected, deselected):
+        """Track which surface tree item is currently selected."""
+        indexes = selected.indexes()
+        if not indexes:
+            self.selected_surface_file_id = None
+            return
+
+        index = indexes[0]
+        model = self.treeView.model()
+        if hasattr(model, "itemFromIndex"):
+            item = model.itemFromIndex(index)
+            if hasattr(item, "surface_file_id"):
+                self.selected_surface_file_id = item.surface_file_id
+                return
+
+        self.selected_surface_file_id = None
+
     def on_context_menu(self, position):
         index = self.treeView.indexAt(position)
-        if not index.isValid() or self.get_item_level(index) != 3:
+        if not index.isValid():
+            return
+
+        level = self.get_item_level(index)
+        if level not in (2, 3):
             return
 
         if hasattr(self.treeView.model(), "itemFromIndex"):
             self.context_item = getattr(self.treeView.model(), "itemFromIndex")(index)
 
-        if hasattr(self.context_item, "polyline_id"):
+        if hasattr(self.context_item, "surface_file_id"):
+            self.context_type = "surface"
+            self.context_id = self.context_item.surface_file_id
+        elif level == 3 and hasattr(self.context_item, "polyline_id"):
             self.context_type = "polyline"
             self.context_id = self.context_item.polyline_id
-        elif hasattr(self.context_item, "point_id"):
+        elif level == 3 and hasattr(self.context_item, "point_id"):
             self.context_type = "point"
             self.context_id = self.context_item.point_id
         else:
             return
 
-        is_polyline = self.context_type == "polyline"
+        is_polyline  = self.context_type == "polyline"
+        is_point     = self.context_type == "point"
+        is_surface   = self.context_type == "surface"
+
         self.selectPolyline.setVisible(is_polyline)
         self.unselectPolyline.setVisible(is_polyline)
         self.showAttribPolyline.setVisible(is_polyline)
         self.editAttribPolyline.setVisible(is_polyline)
-        self.selectPoint.setVisible(not is_polyline)
-        self.unselectPoint.setVisible(not is_polyline)
-        self.showAttribPoint.setVisible(not is_polyline)
-        self.editAttribPoint.setVisible(not is_polyline)
+
+        self.selectPoint.setVisible(is_point)
+        self.unselectPoint.setVisible(is_point)
+        self.showAttribPoint.setVisible(is_point)
+        self.editAttribPoint.setVisible(is_point)
+
+        self.toggleSurfaceActor.setVisible(is_surface)
+        self.toggleWireframeActor.setVisible(is_surface)
+        self.toggleContourActors.setVisible(is_surface)
+        self.surfaceDifference.setVisible(
+            is_surface and self.context_id != 1)
 
         self.context_menu.exec(self.treeView.viewport().mapToGlobal(position))
 
@@ -612,6 +663,46 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             return
         self._scroll_and_select_row(self.tableViewPoints,
                                     self.tableModelPoints, found_row)
+
+    # -----------------------------------------------------------------------
+    # Context Menu Actions — Surfaces
+    # -----------------------------------------------------------------------
+
+    def on_toggle_surface_actor(self):
+        if self.context_type != "surface":
+            return
+        actor = self.vtkWidget.surfaces_get_surface_actor(self.context_id)
+        if actor:
+            actor.SetVisibility(1 - actor.GetVisibility())
+            self.vtkWidget.UpdateView(False)
+
+    def on_toggle_wireframe_actor(self):
+        if self.context_type != "surface":
+            return
+        actor = self.vtkWidget.surfaces_get_wireframe_actor(self.context_id)
+        if actor:
+            actor.SetVisibility(1 - actor.GetVisibility())
+            self.vtkWidget.UpdateView(False)
+
+    def on_toggle_contour_actors(self):
+        if self.context_type != "surface":
+            return
+        actors = self.vtkWidget.contourActorsMap.get(self.context_id, [])
+        for actor in actors:
+            actor.SetVisibility(1 - actor.GetVisibility())
+        if actors:
+            self.vtkWidget.UpdateView(False)
+
+    def on_surface_difference(self):
+        if self.context_type != "surface" or self.context_id == 1:
+            return
+        success = self.vtkWidget.surface_difference(self.context_id)
+        if not success:
+            QMessageBox.warning(
+                self, "Surface Difference",
+                "Could not compute surface difference. "
+                "The surfaces may not intersect or the geometry is invalid."
+            )
 
     # -----------------------------------------------------------------------
     # Table-row Helpers
@@ -842,8 +933,8 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         self.treeView.setModel(self.tree_model)
         self.polyline_idx = 1
         self.point_idx = 1
-        self.surface_idx = 1
         self.contours = 0
+        self.selected_surface_file_id = None
         self.header_label = ""
         self.tableview_release()
 
@@ -1015,7 +1106,8 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
     # -----------------------------------------------------------------------
 
     def _check_valid_surfaces(self, action_to_uncheck=None):
-        """Show a warning and optionally uncheck an action if no valid surfaces exist."""
+        """Show a warning and optionally uncheck an action if no valid surfaces exist
+        or no surface tree item is selected."""
         if not self.vtkWidget.ValidSurfaces():
             if hasattr(QMessageBox, "Ok"):
                 QMessageBox.information(
@@ -1027,36 +1119,42 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             if action_to_uncheck:
                 action_to_uncheck.setChecked(False)
             return False
+
+        if self.selected_surface_file_id is None:
+            if hasattr(QMessageBox, "Ok"):
+                QMessageBox.information(
+                    self, "Surface Reconstruction Dialog",
+                    "Please select a Surface item in the tree first.",
+                    getattr(QMessageBox, "Ok"),
+                )
+            if action_to_uncheck:
+                action_to_uncheck.setChecked(False)
+            return False
+
         return True
 
     def on_contour(self, checked):
         if not self._check_valid_surfaces(self.actionContour):
             return
         if self.vtkWidget:
-            if checked:
-                self.vtkWidget.AddContourActors()
-            else:
-                self.vtkWidget.RemoveContourActors()
+            self.vtkWidget.SetVisibilityContourActors(
+                self.selected_surface_file_id, checked)
             self.vtkWidget.UpdateView(False)
 
     def on_surface(self, checked):
         if not self._check_valid_surfaces(self.actionSurface):
             return
         if self.vtkWidget:
-            if checked:
-                self.vtkWidget.AddSurfaceActor()
-            else:
-                self.vtkWidget.RemoveSurfaceActor()
+            self.vtkWidget.SetVisibilitySurfaceActor(
+                self.selected_surface_file_id, checked)
             self.vtkWidget.UpdateView(False)
 
     def on_wireframe(self, checked):
         if not self._check_valid_surfaces(self.actionWireframe):
             return
         if self.vtkWidget:
-            if checked:
-                self.vtkWidget.AddWireframeActor()
-            else:
-                self.vtkWidget.RemoveWireframeActor()
+            self.vtkWidget.SetVisibilityWireframeActor(
+                self.selected_surface_file_id, checked)
             self.vtkWidget.UpdateView(False)
 
     def on_surface_cfg(self):
@@ -1077,8 +1175,20 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
             self.config_surface()
             self.vtkWidget.UpdateSurface(self.fileType)
             self.vtkWidget.UpdateColorContourActors(self.contour_color)
-            self.vtkWidget.UpdateView(False)
+
+            # Re-apply current toolbar visibility states to all files
+            surface_visible  = self.actionSurface.isChecked()
+            wireframe_visible = self.actionWireframe.isChecked()
+            contour_visible  = self.actionContour.isChecked()
+            for fid in self.vtkWidget.contourActorsMap:
+                self.vtkWidget.SetVisibilitySurfaceActor(fid, surface_visible)
+                self.vtkWidget.SetVisibilityWireframeActor(fid, wireframe_visible)
+                self.vtkWidget.SetVisibilityContourActors(fid, contour_visible)
+
             self.actionSurface.setChecked(True)
+            self.vtkWidget.SetVisibilitySurfaceActor(
+                self.selected_surface_file_id, True)
+            self.vtkWidget.UpdateView(False)
 
     # -----------------------------------------------------------------------
     # Tab Events
