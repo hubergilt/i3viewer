@@ -482,7 +482,8 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         self.toggleSurfaceActor    = self.context_menu.addAction("Show/Hide Surface Actor")
         self.toggleWireframeActor  = self.context_menu.addAction("Show/Hide Wireframe Actor")
         self.toggleContourActors   = self.context_menu.addAction("Show/Hide Contour Actors")
-        self.surfaceDifference     = self.context_menu.addAction("Difference from the first Surface")
+        self.contourDifference     = self.context_menu.addAction("Difference from the first Surface")
+        self.exportContoursXyzs    = self.context_menu.addAction("Export Contours to XYZS")
 
         self.selectPolyline.triggered.connect(self.on_select_polyline)
         self.unselectPolyline.triggered.connect(self.on_unselect_polyline)
@@ -497,7 +498,8 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         self.toggleSurfaceActor.triggered.connect(self.on_toggle_surface_actor)
         self.toggleWireframeActor.triggered.connect(self.on_toggle_wireframe_actor)
         self.toggleContourActors.triggered.connect(self.on_toggle_contour_actors)
-        self.surfaceDifference.triggered.connect(self.on_surface_difference)
+        self.contourDifference.triggered.connect(self.on_contour_difference)
+        self.exportContoursXyzs.triggered.connect(self.on_export_contours_xyzs)
 
     def get_item_level(self, index):
         """Return the depth of a tree item (root = 1)."""
@@ -565,8 +567,10 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         self.toggleSurfaceActor.setVisible(is_surface)
         self.toggleWireframeActor.setVisible(is_surface)
         self.toggleContourActors.setVisible(is_surface)
-        self.surfaceDifference.setVisible(
+        self.contourDifference.setVisible(
             is_surface and self.context_id != 1)
+        self.exportContoursXyzs.setVisible(
+            is_surface and self.context_id == 1)
 
         self.context_menu.exec(self.treeView.viewport().mapToGlobal(position))
 
@@ -687,22 +691,78 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
     def on_toggle_contour_actors(self):
         if self.context_type != "surface":
             return
-        actors = self.vtkWidget.contourActorsMap.get(self.context_id, [])
+        actors = list(self.vtkWidget.contourActorsMap.get(self.context_id, {}).values())
         for actor in actors:
             actor.SetVisibility(1 - actor.GetVisibility())
         if actors:
             self.vtkWidget.UpdateView(False)
 
-    def on_surface_difference(self):
+    def on_contour_difference(self):
         if self.context_type != "surface" or self.context_id == 1:
             return
-        success = self.vtkWidget.surface_difference(self.context_id)
+        success = self.vtkWidget.contour_difference(self.context_id)
         if not success:
             QMessageBox.warning(
-                self, "Surface Difference",
-                "Could not compute surface difference. "
-                "The surfaces may not intersect or the geometry is invalid."
+                self, "Contour Difference",
+                "Could not compute contour difference. "
+                "The surfaces may not share a Z level or the geometry is invalid."
             )
+
+    def on_export_contours_xyzs(self):
+        """Export the current contour actors for fid=1 to an .xyzs file.
+
+        Each contour actor's polyline cells are written as X Y Z lines,
+        with a $ separator between actors. Reflects any difference operations
+        already applied — i.e. exports the modified result, not the original.
+        """
+        if self.context_type != "surface" or self.context_id != 1:
+            return
+
+        file_path, _ = QFileDialog.getSaveFileName(
+            self, "Export Contours to XYZS", "", "XYZS Files (*.xyzs);;All Files (*)"
+        )
+        if not file_path:
+            return
+
+        sid_actor_map = self.vtkWidget.contourActorsMap.get(1, {})
+        actors = list(sid_actor_map.values())
+        if not actors:
+            QMessageBox.warning(self, "Export Contours",
+                                "No contour actors found for the first surface.")
+            return
+
+        try:
+            with open(file_path, "w") as f:
+                for actor_idx, actor in enumerate(actors):
+                    mapper = actor.GetMapper()
+                    if mapper is None:
+                        continue
+                    poly = mapper.GetInput()
+                    if poly is None or poly.GetNumberOfPoints() == 0:
+                        continue
+
+                    written = False
+                    for cell_idx in range(poly.GetNumberOfCells()):
+                        cell = poly.GetCell(cell_idx)
+                        n_pts = cell.GetNumberOfPoints()
+                        if n_pts < 2:
+                            continue
+                        for j in range(n_pts):
+                            pid = cell.GetPointId(j)
+                            x, y, z = poly.GetPoint(pid)
+                            f.write(f"{x:.3f}\t{y:.3f}\t{z:.3f}\n")
+                        written = True
+
+                    if written and actor_idx < len(actors) - 1:
+                        f.write("$\n")
+
+            QMessageBox.information(
+                self, "Export Contours",
+                f"Contours exported successfully to:\n{file_path}"
+            )
+        except OSError as e:
+            QMessageBox.critical(self, "Export Contours",
+                                 f"Could not write file:\n{e}")
 
     # -----------------------------------------------------------------------
     # Table-row Helpers

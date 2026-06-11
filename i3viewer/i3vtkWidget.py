@@ -89,7 +89,11 @@ class i3vtkWidget(QWidget):
                 existing_contour_count = len(self.contourActors)
                 self.contourActors.extend(self.model.surfaces_format_actors(fileType))
                 new_contour_actors = self.contourActors[existing_contour_count:]
-                self.contourActorsMap[self.model.surface_file_id] = new_contour_actors
+                self.contourActorsMap[self.model.surface_file_id] = {
+                    actor.surface_id: actor
+                    for actor in new_contour_actors
+                    if hasattr(actor, "surface_id")
+                }
                 for actor in new_contour_actors:
                     self.AddActor(actor)
                 self.surfaceActor = self.surface_reconstruction_actor(
@@ -118,7 +122,11 @@ class i3vtkWidget(QWidget):
             existing_contour_count = len(self.contourActors)
             self.contourActors.extend(self.model.surfaces_format_actors(fileType))
             new_contour_actors = self.contourActors[existing_contour_count:]
-            self.contourActorsMap[self.model.surface_file_id] = new_contour_actors
+            self.contourActorsMap[self.model.surface_file_id] = {
+                actor.surface_id: actor
+                for actor in new_contour_actors
+                if hasattr(actor, "surface_id")
+            }
             for actor in new_contour_actors:
                 self.AddActor(actor)
             self.surfaceActor = self.surface_reconstruction_actor(
@@ -138,7 +146,7 @@ class i3vtkWidget(QWidget):
         for actor in self.actors[existing_count:]:
             self.AddActor(actor)
 
-        self.UpdateView(resetCamera=newFile)
+        self.UpdateView()
 
     # -------------------------------------------------------------------------
     # Actor Lookup
@@ -185,50 +193,52 @@ class i3vtkWidget(QWidget):
                 return actor
         return None
 
-    def surfaces_get_polydata(self, surface_file_id):
-        """Return the vtkPolyData from the surface actor for the given surface_file_id."""
-        actor = self.surfaces_get_surface_actor(surface_file_id)
-        if actor is None:
-            return None
-        mapper = actor.GetMapper()
-        if mapper is None:
-            return None
-        return mapper.GetInput()
+    def contour_difference(self, fid_b):
+        """Apply contour difference fid=1 minus fid_b, updating contour actors.
 
-    def surface_difference(self, fid_b):
-        """Replace the first surface actor with the result of A minus B.
+        Operates on one B file at a time against the current live state of A
+        stored in self.model.surfaces_by_file[1]. The live state is updated
+        in-place so subsequent calls see the already-clipped geometry.
 
-        A is always surface_file_id=1 (the master/accumulator).
-        B is the surface identified by fid_b.
-        The result is stored back under fid_a=1 so further subtractions
-        continue to accumulate on the same slot.
+        Only contour actors are updated. Surface and wireframe actors are left
+        unchanged for now.
+
+        Returns True on success, False if nothing was affected.
         """
         fid_a = 1
-        polydata_a = self.surfaces_get_polydata(fid_a)
-        polydata_b = self.surfaces_get_polydata(fid_b)
 
-        if polydata_a is None or polydata_b is None:
+        surfaces_a_by_z = self.model.surfaces_by_file.get(fid_a)
+        surfaces_b_by_z = self.model.surfaces_by_file.get(fid_b)
+        if not surfaces_a_by_z or not surfaces_b_by_z:
             return False
 
-        new_actor = self.model.surface_difference_actor(
-            polydata_a, polydata_b, self.surfacecfg)
+        color = self.model.contourColor or [1.0, 1.0, 0.0]
 
-        if new_actor is None:
+        # new_actors = {sid: actor | None}
+        # None means the sid was fully consumed (remove its actor entirely)
+        new_actors = self.model.contour_difference(
+            surfaces_a_by_z, surfaces_b_by_z, color)
+
+        if not new_actors:
             return False
 
-        # Remove old A actor from renderer and actors list
-        old_actor = self.surfaces_get_surface_actor(fid_a)
-        if old_actor:
-            self.RemoveActor(old_actor)
-            self.actors.remove(old_actor)
+        sid_map = self.contourActorsMap.get(fid_a, {})
 
-        # Stamp and register the new actor under fid_a
-        new_actor.surface_file_id = fid_a
-        new_actor.actor_type = "surface"
-        self.actors.append(new_actor)
-        self.AddActor(new_actor)
-        self.surfaceActor = new_actor
+        for sid, new_actor in new_actors.items():
+            old_actor = sid_map.get(sid)
+            if old_actor is not None:
+                self.RemoveActor(old_actor)
+                if old_actor in self.contourActors:
+                    self.contourActors.remove(old_actor)
 
+            if new_actor is not None:
+                self.AddActor(new_actor)
+                self.contourActors.append(new_actor)
+                sid_map[sid] = new_actor
+            else:
+                sid_map.pop(sid, None)
+
+        self.contourActorsMap[fid_a] = sid_map
         self.UpdateView(False)
         return True
 
@@ -855,7 +865,7 @@ class i3vtkWidget(QWidget):
 
     def SetVisibilityContourActors(self, surface_file_id, visible):
         """Show or hide all contour actors for the given surface_file_id."""
-        for actor in self.contourActorsMap.get(surface_file_id, []):
+        for actor in self.contourActorsMap.get(surface_file_id, {}).values():
             actor.SetVisibility(1 if visible else 0)
 
     def _build_contour_polydata(self, fileType, contour_actors=None):
@@ -892,7 +902,8 @@ class i3vtkWidget(QWidget):
     def UpdateSurface(self, fileType):
         cfg = self.delaunaycfg, self.surfacecfg
 
-        for fid, contour_actors in self.contourActorsMap.items():
+        for fid, sid_actor_map in self.contourActorsMap.items():
+            contour_actors = list(sid_actor_map.values())
             # Remove and replace surface actor for this file
             old_surface = self.surfaces_get_surface_actor(fid)
             if old_surface:
