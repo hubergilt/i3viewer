@@ -21,7 +21,6 @@ class i3model:
         self.polylines = {}
         self.points = {}
         self.surfaces = {}
-        self.surfaces_by_file = {}
         self.polylabels = {}
         self.pointlabels = {}
 
@@ -39,7 +38,6 @@ class i3model:
         self.polylines = {}
         self.points = {}
         self.surfaces = {}
-        self.surfaces_by_file = {}
         self.polylabels = {}
         self.pointlabels = {}
 
@@ -82,12 +80,6 @@ class i3model:
 
     def hasSurfacesTable(self):
         return self.table_exists("surfaces")
-
-    def hasRoutesTable(self):
-        return self.table_exists("routes")
-
-    def hasTonnesTable(self):
-        return self.table_exists("tonnes")
 
     def hasRoutesTonnesTable(self):
         return self.table_exists("routes_tonnes")
@@ -520,19 +512,6 @@ class i3model:
 
         self.surfaces.update(surfaces)
 
-        # Build Z-grouped contours for this file: {z: {surface_id: [pts]}}
-        # Preserving per-surface_id separation is essential — merging multiple
-        # surface_ids into one flat list would falsely connect their endpoints
-        # when building contour polylines, producing crossing diagonal lines.
-        surfaces_by_z = {}
-        for sid, vertices in surfaces.items():
-            if not vertices:
-                continue
-            z = vertices[0][2]          # all points in one surface_id share one Z
-            surfaces_by_z.setdefault(z, {})[sid] = list(vertices)
-
-        self.surfaces_by_file[self.surface_file_id] = surfaces_by_z
-
         return self.surfaces_create_new_actors(surfaces)
 
     def surfaces_create_new_actors(self, surfaces):
@@ -556,14 +535,15 @@ class i3model:
         polyline = vtk.vtkPolyLine()
         polyline.GetPointIds().SetNumberOfIds(len(vertices))
 
-        for i, (x, y, z, *_) in enumerate(vertices):
-            pid = points.InsertNextPoint(x, y, z)
+        z = vertices[0][2]      # all points share the same Z in 2.5D data
+        for i, (x, y, z_pt, *_) in enumerate(vertices):
+            pid = points.InsertNextPoint(x, y, z_pt)
             polyline.GetPointIds().SetId(i, pid)
 
         cells.InsertNextCell(polyline)
-        return self.surfaces_build_actor(points, cells, color, surface_id)
+        return self.surfaces_build_actor(points, cells, color, surface_id, z)
 
-    def surfaces_build_actor(self, points, cells, color, surface_id):
+    def surfaces_build_actor(self, points, cells, color, surface_id, z):
         """Construct and return a VTK actor for a surface contour."""
         poly_data = vtk.vtkPolyData()
         poly_data.SetPoints(points)
@@ -580,6 +560,7 @@ class i3model:
         actor.GetProperty().SetLineWidth(2)
         setattr(actor, "surface_id", surface_id)
         setattr(actor, "color", color)
+        setattr(actor, "z", z)
         return actor
 
     # -------------------------------------------------------------------------
@@ -733,173 +714,504 @@ class i3model:
         return None
 
     @staticmethod
-    def _nearest_a_index(pt, a_pts, tol):
-        """Return the index of the nearest point in a_pts to pt within tol,
-        or None if no point is within tol."""
-        best_d = tol * tol   # compare squared distances — no sqrt needed
-        best_i = None
-        px, py = pt[0], pt[1]
-        for i, ap in enumerate(a_pts):
-            dx = ap[0] - px
-            dy = ap[1] - py
-            d2 = dx * dx + dy * dy
-            if d2 < best_d:
-                best_d = d2
-                best_i = i
-        return best_i
+    def _boundary_substitution(a_pts, b_pts, tol=0.4):
+        """Boundary substitution algorithm — 2.5D.
 
-    @staticmethod
-    def _detect_shared_boundary(a_pts, b_pts, tol=1.0):
-        """Detect whether B's boundary shares points with A's contour.
+        Replaces the outer arc (shared boundary) of the main open polyline
+        actor_a with the inner arc of the notch closed polygon actor_b,
+        effectively cutting a notch out of the original contour.
 
-        A mining-cut polygon has its outer edge coinciding with a segment of
-        A's contour line. B may have TWO separate ON-main runs — a long outer
-        arc and a short closing segment — separated by the inner cut arc. This
-        function finds the true left and right junction points across ALL
-        ON-main runs, not just the longest one.
+        All geometry is 3D (x, y, z).  All intersection tests are performed
+        in projected 2D (x, y); Z is interpolated from the originating 3D
+        edge at parameter t so new intersection points carry the correct
+        altitude.
+
+        This is a thin orchestrator over four steps, each implemented as its
+        own static method so they can be tested / debugged independently:
+            Step 1 — i3model._bsub_step1_find_intersections
+            Step 2 — i3model._bsub_step2_find_start_end
+            Step 3 — i3model._bsub_step3_build_arcs
+            Step 4 — i3model._bsub_step4_rebuild_a
 
         Args:
-            a_pts: flat list of (x, y, z, ...) for A's closed contour
-            b_pts: flat list of (x, y, z, ...) for B's closed polygon
-            tol:   maximum distance (map units) to consider two points coincident
-
-        Returns a dict with keys:
-            match    : list of matched a indices (or -1) for every b point
-            j_right  : b index where match[j] == a_end (first occurrence) —
-                       traversal starts here to collect the inner arc
-            a_start  : min a index across all ON-main runs — left junction
-            a_end    : max a index across all ON-main runs — right junction
-            reversed : True if B traverses A in reverse direction
-        or None if total ON-main point count < 3.
-        """
-        n_b = len(b_pts)
-
-        # For each b point record the nearest a index (or -1 if none within tol)
-        match = []
-        for bp in b_pts:
-            mi = i3model._nearest_a_index(bp, a_pts, tol)
-            match.append(mi if mi is not None else -1)
-
-        # Count total shared points and find true junction indices across
-        # ALL ON-main runs (not just the longest single run).
-        on_indices = [mi for mi in match if mi != -1]
-        if len(on_indices) < 3:
-            return None
-
-        a_start = min(on_indices)   # left junction in A
-        a_end   = max(on_indices)   # right junction in A
-
-        # Find j_right: first b index where match[j] == a_end.
-        # The inner arc begins immediately after j_right in B's traversal.
-        j_right = next((j for j in range(n_b) if match[j] == a_end), None)
-        if j_right is None:
-            return None
-
-        # Traversal direction: forward if B goes a_start → a_end along the
-        # shared arc (i.e. a_end appears after a_start in B's sequence).
-        j_start_candidates = [j for j in range(n_b) if match[j] == a_start]
-        if not j_start_candidates:
-            return None
-
-        # For forward detection: check if going forward from j_right
-        # eventually hits a_start before cycling back to j_right.
-        forward = (a_end > a_start)
-
-        return {
-            'match':    match,
-            'j_right':  j_right,
-            'a_start':  a_start,
-            'a_end':    a_end,
-            'reversed': not forward,
-        }
-
-    @staticmethod
-    def _splice_shared_boundary(a_pts, b_pts, shared, z):
-        """Boundary substitution for Type-2 cuts (B straddles A's boundary).
-
-        Replaces the shared segment of A's contour with B's inner arc, producing
-        a single continuous closed result contour with the notch cut correctly
-        substituted.
-
-        Args:
-            a_pts:  flat list of (x, y, z, ...) for A's closed contour
-            b_pts:  flat list of (x, y, z, ...) for B's closed polygon
-            shared: dict returned by _detect_shared_boundary
-            z:      Z coordinate for all output points
+            a_pts: ordered list of (x, y, z) — open polyline (A)
+            b_pts: ordered list of (x, y, z) — closed polygon (B), last
+                   vertex implicitly connects back to first
+            tol:   tolerance for vertex matching (default 0.4).
+                   Must cover float32 rounding at the coordinate scale in use
+                   (~0.25–0.5 units at scale ~8e6) while staying below the
+                   minimum separation between genuinely distinct B vertices
+                   (~1.0 units in practice). 0.4 satisfies both constraints.
 
         Returns:
-            (arc_segments, gap_fills) in the same format as _clip_contour_2d.
-            arc_segments: [one_list_of_pts] — the spliced result contour
-            gap_fills:    [inner_arc_pts]   — B's inner arc (for display + Delaunay)
+            (arc_pts, inner_arc) where
+                arc_pts   — rebuilt A polyline with the notch cut in
+                inner_arc — B's inner arc (for gap fill / Delaunay)
+            or None if fewer than 2 intersection points exist (no substitution),
+            or if Start/End cannot be located, or rebuild fails.
         """
-        match   = shared['match']
-        j_right = shared['j_right']
-        a_start = shared['a_start']
-        a_end   = shared['a_end']
-        is_rev  = shared['reversed']
+        intersections = i3model._bsub_step1_find_intersections(a_pts, b_pts, tol)
+        if intersections is None:
+            return None
 
+        start_end = i3model._bsub_step2_find_start_end(b_pts, intersections, tol)
+        if start_end is None:
+            return None
+        start_pt, end_pt = start_end
+
+        arcs = i3model._bsub_step3_build_arcs(
+            b_pts, start_pt, end_pt, intersections, tol)
+        if arcs is None:
+            return None
+        outer_arc, inner_arc = arcs
+
+        rebuilt = i3model._bsub_step4_rebuild_a(
+            a_pts, start_pt, end_pt, outer_arc, tol)
+        if rebuilt is None:
+            return None
+
+        return rebuilt, inner_arc
+
+    @staticmethod
+    def _bsub_step1_find_intersections(a_pts, b_pts, tol=0.4):
+        """Step 1 — Compute all A-vertex × B-vertex coincidence points.
+
+        Compares each unique A vertex directly against every B vertex in 2D
+        (x, y); Z is taken from the matching A vertex. A hit is recorded
+        only when both vertices coincide within tol. No edge projection, no
+        t_b ambiguity. seen_a_vertices / seen_b_vertices guard against
+        recording duplicate hits when two distinct A (or B) vertices both
+        land within tol of the same counterpart vertex.
+
+        Args:
+            a_pts: ordered list of (x, y, z) — open polyline (A)
+            b_pts: ordered list of (x, y, z) — closed polygon (B)
+            tol:   vertex-matching tolerance
+
+        Returns:
+            list of (x, y, z, a_idx, t_a, b_idx, t_b) intersection tuples,
+            or None if fewer than 2 are found (substitution not applicable).
+        """
+        n_a = len(a_pts)
         n_b = len(b_pts)
 
-        # ------------------------------------------------------------------
-        # Extract the inner arc: traverse B forward from j_right+1, collecting
-        # points until we reach a point matched to a_start (left junction).
-        #
-        # Rules for each visited B point:
-        #   • matched to a_start → stop (this IS the left junction, already in A)
-        #   • matched to a_end   → skip (the right junction, already in A)
-        #   • OFF-main (match=-1) → include — these are the true cut-face points
-        #   • ON-main but not a junction → include as A point (intermediate pivot)
-        #
-        # This correctly collects cut1[94..102] + main[1138] for the data at hand,
-        # and excludes the short closing ON-main run cut1[103..107] which is the
-        # second shared segment (not part of the inner cut face).
-        # ------------------------------------------------------------------
-        inner_arc_raw = []
-        idx   = (j_right + 1) % n_b
-        steps = 0
-        while steps < n_b:
-            mi = match[idx]
-            if mi == a_start:
-                break                    # reached left junction — stop
-            if mi != a_end:              # skip right-junction duplicates
-                if mi == -1:
-                    inner_arc_raw.append(b_pts[idx])          # OFF-main cut pt
+        def _find_b_vertex_for_vertex(px, py):
+            """Return b_vertex_idx j if b_pts[j] coincides with (px, py) within tol, else None."""
+            for j in range(n_b):
+                bx, by = b_pts[j][0], b_pts[j][1]
+                if (bx - px) ** 2 + (by - py) ** 2 < tol * tol:
+                    return j
+            return None
+
+        raw_intersections = []   # (x, y, z, a_edge_idx, t_a, b_edge_idx, t_b)
+
+        # Guard against two distinct A vertices both matching the same B vertex
+        # (e.g. a_pts[1145] and a_pts[1146] both within tol of b_pts[1]).
+        # seen_a_vertices prevents re-recording the same A vertex; seen_b_vertices
+        # prevents re-recording the same B vertex from a different A vertex.
+        seen_a_vertices = set()
+        seen_b_vertices = set()
+        for i in range(n_a):
+            vx, vy, vz = a_pts[i][0], a_pts[i][1], a_pts[i][2]
+            key_a = (round(vx, 6), round(vy, 6))
+            if key_a in seen_a_vertices:
+                continue
+            seen_a_vertices.add(key_a)
+            j_b = _find_b_vertex_for_vertex(vx, vy)
+            if j_b is None:
+                continue
+            if j_b in seen_b_vertices:
+                continue   # another A vertex already claimed this B vertex
+            seen_b_vertices.add(j_b)
+            raw_intersections.append((vx, vy, vz, i, 0.0, j_b, 0.0))
+
+        intersections = list(raw_intersections)
+
+        if len(intersections) < 2:
+            return None   # not enough crossings — substitution not applicable
+
+        # --- DEBUG: intersection points (csv format) ---
+        print(f"[_boundary_substitution] Step 1: {len(intersections)} intersection(s) after dedup")
+        for pt in intersections:
+            print(f"{pt[0]},{pt[1]},{pt[2]},,,,")
+
+        return intersections
+
+    @staticmethod
+    def _bsub_step2_find_start_end(b_pts, intersections, tol=0.4):
+        """Step 2 — Find Start Point and End Point on actor_b.
+
+        Walk b edges from index 0. For each edge, check whether any
+        intersection point lies on it (within tol).  Detect transitions:
+            first  true→false  →  Start Point (on the leaving edge)
+            last   false→true  →  End Point   (on the entering edge)
+        The last edge wraps back to the first for circular comparison.
+
+        Args:
+            b_pts:         ordered list of (x, y, z) — closed polygon (B)
+            intersections: list of intersection tuples from Step 1
+            tol:           vertex-matching tolerance
+
+        Returns:
+            (start_pt, end_pt) each as (x, y, z), or None if not found.
+        """
+        n_b = len(b_pts)
+
+        def _dist2(p, q):
+            return (p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2
+
+        def _pt_on_b_edge(ix, iy, j):
+            """True when (ix,iy) lies on b edge j within tol."""
+            p3, p4 = b_pts[j][:2], b_pts[(j + 1) % n_b][:2]
+            dx, dy = p4[0] - p3[0], p4[1] - p3[1]
+            seg_len2 = dx * dx + dy * dy
+            if seg_len2 < 1e-20:
+                return _dist2((ix, iy, 0), (p3[0], p3[1], 0)) < tol * tol
+            t = ((ix - p3[0]) * dx + (iy - p3[1]) * dy) / seg_len2
+            if t < -tol or t > 1.0 + tol:
+                return False
+            cx = p3[0] + t * dx
+            cy = p3[1] + t * dy
+            return (cx - ix) ** 2 + (cy - iy) ** 2 < tol * tol
+
+        # Boolean sequence: does any intersection point lie on b edge j?
+        edge_has_intersection = []
+        for j in range(n_b):
+            has = any(_pt_on_b_edge(pt[0], pt[1], j) for pt in intersections)
+            edge_has_intersection.append(has)
+
+        start_pt = None   # (x, y, z)
+        end_pt   = None   # (x, y, z)
+
+        for j in range(n_b):
+            cur  = edge_has_intersection[j]
+            prev = edge_has_intersection[(j - 1) % n_b]
+
+            if cur and not prev:
+                # false → true transition: this is the End Point candidate
+                # (the last such transition will be the End Point)
+                for pt in intersections:
+                    if _pt_on_b_edge(pt[0], pt[1], j):
+                        end_pt = (pt[0], pt[1], pt[2])
+                        break
+
+            if not cur and prev:
+                # true → false transition: Start Point
+                for pt in intersections:
+                    if _pt_on_b_edge(pt[0], pt[1], (j - 1) % n_b):
+                        start_pt = (pt[0], pt[1], pt[2])
+                        break
+
+        if start_pt is None or end_pt is None:
+            return None
+
+        # --- DEBUG: start and end points (csv format) ---
+        print(f"[_boundary_substitution] start_pt: {start_pt[0]},{start_pt[1]},{start_pt[2]},,,,")
+        print(f"[_boundary_substitution] end_pt:   {end_pt[0]},{end_pt[1]},{end_pt[2]},,,,")
+
+        return start_pt, end_pt
+
+    @staticmethod
+    def _bsub_step3_build_arcs(b_pts, start_pt, end_pt, intersections, tol=0.4):
+        """Step 3 — Build two arcs from actor_b (walk in 3D).
+
+        Walk b vertices from index 0.  Insert Start Point and End Point
+        when the edge they lie on is traversed.  Split at those two points
+        to form Arc 1 (first half) and Arc 2 (second half + wrap-around).
+        Count how many intersections from Step 1 belong to each arc.
+            Arc with more intersections → inner arc.
+            Arc with fewer intersections → outer arc.
+
+        Args:
+            b_pts:         ordered list of (x, y, z) — closed polygon (B)
+            start_pt:      (x, y, z) from Step 2
+            end_pt:        (x, y, z) from Step 2
+            intersections: list of intersection tuples from Step 1
+            tol:           vertex-matching tolerance
+
+        Returns:
+            (outer_arc, inner_arc), each a list of (x, y, z) points,
+            or None if Start/End could not be spliced into B's boundary.
+        """
+        n_b = len(b_pts)
+
+        def _dist2(p, q):
+            return (p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2
+
+        def _pt_on_b_edge(ix, iy, j):
+            p3, p4 = b_pts[j][:2], b_pts[(j + 1) % n_b][:2]
+            dx, dy = p4[0] - p3[0], p4[1] - p3[1]
+            seg_len2 = dx * dx + dy * dy
+            if seg_len2 < 1e-20:
+                return _dist2((ix, iy, 0), (p3[0], p3[1], 0)) < tol * tol
+            t = ((ix - p3[0]) * dx + (iy - p3[1]) * dy) / seg_len2
+            if t < -tol or t > 1.0 + tol:
+                return False
+            cx = p3[0] + t * dx
+            cy = p3[1] + t * dy
+            return (cx - ix) ** 2 + (cy - iy) ** 2 < tol * tol
+
+        def _close_to(p2d, q2d):
+            return (p2d[0] - q2d[0]) ** 2 + (p2d[1] - q2d[1]) ** 2 < tol * tol
+
+        # Ordered b vertices with Start/End inserted
+        b_augmented = []    # list of (x, y, z, tag)  tag ∈ {'v','start','end'}
+        start_inserted = False
+        end_inserted   = False
+
+        for j in range(n_b):
+            v = b_pts[j]
+            # Check if the START point lies on edge j (from v to v_next)
+            if not start_inserted and _pt_on_b_edge(start_pt[0], start_pt[1], j):
+                # Insert start before the trailing vertex if not coincident
+                if not _close_to(start_pt[:2], v[:2]):
+                    b_augmented.append((*v[:3], 'v'))
+                b_augmented.append((*start_pt, 'start'))
+                start_inserted = True
+                # Also check end on same edge
+                if not end_inserted and _pt_on_b_edge(end_pt[0], end_pt[1], j):
+                    if not _close_to(end_pt[:2], start_pt[:2]):
+                        b_augmented.append((*end_pt, 'end'))
+                    end_inserted = True
+                continue
+
+            # Check if the END point lies on edge j
+            if not end_inserted and _pt_on_b_edge(end_pt[0], end_pt[1], j):
+                if not _close_to(end_pt[:2], v[:2]):
+                    b_augmented.append((*v[:3], 'v'))
+                b_augmented.append((*end_pt, 'end'))
+                end_inserted = True
+                continue
+
+            b_augmented.append((*v[:3], 'v'))
+
+        # Handle case where start/end fall on the wrap-around (last→first) edge
+        if not start_inserted:
+            b_augmented.append((*start_pt, 'start'))
+        if not end_inserted:
+            b_augmented.append((*end_pt, 'end'))
+
+        # Split augmented list into Arc1 (start→end) and Arc2 (end→start+wrap)
+        sp_idx = next((i for i, p in enumerate(b_augmented) if p[3] == 'start'),
+                      None)
+        ep_idx = next((i for i, p in enumerate(b_augmented) if p[3] == 'end'),
+                      None)
+
+        if sp_idx is None or ep_idx is None:
+            return None
+
+        def _to_xyz(entries):
+            return [(e[0], e[1], e[2]) for e in entries]
+
+        if sp_idx < ep_idx:
+            arc1 = _to_xyz(b_augmented[sp_idx: ep_idx + 1])
+            arc2 = _to_xyz(b_augmented[ep_idx:] + b_augmented[:sp_idx + 1])
+        else:
+            arc1 = _to_xyz(b_augmented[sp_idx:] + b_augmented[:ep_idx + 1])
+            arc2 = _to_xyz(b_augmented[ep_idx: sp_idx + 1])
+
+        # Count intersections belonging to each arc (by 2D proximity)
+        def _count_intersections_on_arc(arc, ixs):
+            count = 0
+            for pt in ixs:
+                for k in range(len(arc) - 1):
+                    dx = arc[k + 1][0] - arc[k][0]
+                    dy = arc[k + 1][1] - arc[k][1]
+                    seg2 = dx * dx + dy * dy
+                    if seg2 < 1e-20:
+                        if _dist2(pt[:2] + (0,), arc[k][:2] + (0,)) < tol * tol:
+                            count += 1
+                            break
+                        continue
+                    t = ((pt[0] - arc[k][0]) * dx +
+                         (pt[1] - arc[k][1]) * dy) / seg2
+                    if t < -tol or t > 1.0 + tol:
+                        continue
+                    cx = arc[k][0] + t * dx
+                    cy = arc[k][1] + t * dy
+                    if (cx - pt[0]) ** 2 + (cy - pt[1]) ** 2 < tol * tol:
+                        count += 1
+                        break
+            return count
+
+        count1 = _count_intersections_on_arc(arc1, intersections)
+        count2 = _count_intersections_on_arc(arc2, intersections)
+
+        if count1 >= count2:
+            inner_arc = arc1
+            outer_arc = arc2
+        else:
+            inner_arc = arc2
+            outer_arc = arc1
+
+        # --- DEBUG: outer arc (xyzs format) ---
+        print(f"[_boundary_substitution] outer_arc ({len(outer_arc)} pts):")
+        for p in outer_arc:
+            print(f"{p[0]} {p[1]} {p[2]}")
+        print("$")
+
+        # --- DEBUG: inner arc (xyzs format) ---
+        print(f"[_boundary_substitution] inner_arc ({len(inner_arc)} pts):")
+        for p in inner_arc:
+            print(f"{p[0]} {p[1]} {p[2]}")
+        print("$")
+
+        return outer_arc, inner_arc
+
+    @staticmethod
+    def _bsub_step4_rebuild_a(a_pts, start_pt, end_pt, outer_arc, tol=0.4):
+        """Step 4 — Rebuild actor_a.
+
+        Walk a_pts in 3D applying:
+            • before start edge  → keep
+            • start on vertex    → keep vertex, mark as start
+            • start on edge      → keep vertices up to and incl. start edge
+                                    start, insert interpolated start point
+            • between start/end  → skip
+            • end on vertex      → mark as end, keep
+            • end on edge        → insert interpolated end point
+            • after end edge     → keep
+        Insert outer_arc between start and end (reverse if needed).
+
+        Args:
+            a_pts:     ordered list of (x, y, z) — open polyline (A)
+            start_pt:  (x, y, z) from Step 2 (order vs end_pt not assumed)
+            end_pt:    (x, y, z) from Step 2
+            outer_arc: list of (x, y, z) from Step 3
+            tol:       vertex-matching tolerance
+
+        Returns:
+            rebuilt A polyline as list of (x, y, z), or None on failure.
+        """
+        n_a = len(a_pts)
+
+        def _dist2(p, q):
+            return (p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2
+
+        def _close_to(p2d, q2d):
+            return (p2d[0] - q2d[0]) ** 2 + (p2d[1] - q2d[1]) ** 2 < tol * tol
+
+        def _find_on_a_edge(pt2d, idx_a):
+            """Return t if pt2d lies on edge idx_a of a_pts."""
+            p1, p2 = a_pts[idx_a][:2], a_pts[idx_a + 1][:2]
+            dx, dy = p2[0] - p1[0], p2[1] - p1[1]
+            seg2 = dx * dx + dy * dy
+            if seg2 < 1e-20:
+                return None
+            t = ((pt2d[0] - p1[0]) * dx + (pt2d[1] - p1[1]) * dy) / seg2
+            if t < -tol or t > 1.0 + tol:
+                return None
+            cx = p1[0] + t * dx
+            cy = p1[1] + t * dy
+            if (cx - pt2d[0]) ** 2 + (cy - pt2d[1]) ** 2 < tol * tol:
+                return t
+            return None
+
+        # Locate start_pt and end_pt on A
+        a_start_edge = None; a_start_t = None; a_start_on_vertex = None
+        a_end_edge   = None; a_end_t   = None; a_end_on_vertex   = None
+
+        for i in range(n_a - 1):
+            if a_start_edge is None:
+                # Check if start_pt coincides with vertex i or i+1 within tol
+                if _dist2(start_pt[:2], a_pts[i][:2]) < tol * tol:
+                    a_start_edge = i; a_start_t = 0.0; a_start_on_vertex = i
+                elif _dist2(start_pt[:2], a_pts[i + 1][:2]) < tol * tol:
+                    a_start_edge = i; a_start_t = 1.0; a_start_on_vertex = i + 1
                 else:
-                    inner_arc_raw.append(a_pts[mi])           # intermediate pivot
-            idx   = (idx + 1) % n_b
-            steps += 1
+                    t = _find_on_a_edge(start_pt[:2], i)
+                    if t is not None:
+                        a_start_edge = i; a_start_t = t; a_start_on_vertex = None
 
-        # inner_arc_raw currently goes from a_end side toward a_start side.
-        # For the splice we need it going a_end → a_start (same as A's direction)
-        # which is already the case when B is forward (a_start < a_end).
-        # When B is reversed the shared arc was traversed backwards in B, so
-        # reverse the inner arc to restore the correct a_end → a_start order.
-        if is_rev:
-            inner_arc_raw = list(reversed(inner_arc_raw))
+            if a_end_edge is None:
+                if _dist2(end_pt[:2], a_pts[i][:2]) < tol * tol:
+                    a_end_edge = i; a_end_t = 0.0; a_end_on_vertex = i
+                elif _dist2(end_pt[:2], a_pts[i + 1][:2]) < tol * tol:
+                    a_end_edge = i; a_end_t = 1.0; a_end_on_vertex = i + 1
+                else:
+                    t = _find_on_a_edge(end_pt[:2], i)
+                    if t is not None:
+                        a_end_edge = i; a_end_t = t; a_end_on_vertex = None
 
-        inner_arc = [(pt[0], pt[1], z) for pt in inner_arc_raw]
+        if a_start_edge is None or a_end_edge is None:
+            print(f"[_boundary_substitution] Step 4 ERROR: could not locate start/end on A "
+                  f"(a_start_edge={a_start_edge}, a_end_edge={a_end_edge})")
+            return None
 
-        # ------------------------------------------------------------------
-        # Build the spliced result contour:
-        #   A[0 .. a_start] + inner_arc + A[a_end ..]
-        # The junction points a_start and a_end are kept from A so there is
-        # no floating-point gap at either splice point.
-        # ------------------------------------------------------------------
-        before_cut = [(pt[0], pt[1], z) for pt in a_pts[:a_start + 1]]
-        after_cut  = [(pt[0], pt[1], z) for pt in a_pts[a_end:]]
+        # Ensure start comes before end along A
+        if a_start_edge > a_end_edge or (
+                a_start_edge == a_end_edge and a_start_t > a_end_t):
+            start_pt, end_pt = end_pt, start_pt
+            a_start_edge, a_end_edge = a_end_edge, a_start_edge
+            a_start_t,    a_end_t    = a_end_t,    a_start_t
+            a_start_on_vertex, a_end_on_vertex = a_end_on_vertex, a_start_on_vertex
+            print(f"[_boundary_substitution] Step 4: swapped start/end so start comes first on A")
 
-        result = before_cut + inner_arc + after_cut
+        print(f"[_boundary_substitution] Step 4: a_start_edge={a_start_edge} t={a_start_t:.4f} "
+              f"on_vertex={a_start_on_vertex}")
+        print(f"[_boundary_substitution] Step 4: a_end_edge={a_end_edge}   t={a_end_t:.4f} "
+              f"on_vertex={a_end_on_vertex}")
 
-        # Gap fill = the inner arc bookended by the junction A points.
-        # Used for (1) displaying the cut face and (2) constraining Delaunay.
-        gap_fill = ([(a_pts[a_start][0], a_pts[a_start][1], z)] +
-                    inner_arc +
-                    [(a_pts[a_end][0], a_pts[a_end][1], z)])
+        # Build result A polyline
+        result = []
 
-        arc_segments = [result]    if len(result)    >= 2 else []
-        gap_fills    = [gap_fill]  if len(gap_fill)  >= 2 else []
+        # Vertices strictly before the start edge
+        result.extend((p[0], p[1], p[2]) for p in a_pts[:a_start_edge + 1])
 
-        return arc_segments, gap_fills
+        # Insert start point (or use the coincident vertex)
+        if a_start_on_vertex is not None:
+            if result and _close_to(result[-1][:2], a_pts[a_start_on_vertex][:2]):
+                pass  # already appended as part of the prefix above
+            else:
+                result.append((a_pts[a_start_on_vertex][0],
+                                a_pts[a_start_on_vertex][1],
+                                a_pts[a_start_on_vertex][2]))
+        else:
+            # Split: append interpolated start point
+            if not result or not _close_to(result[-1][:2], start_pt[:2]):
+                result.append(start_pt)
+
+        # Outer arc goes between start_pt and end_pt
+        # Check orientation: if outer_arc[-1] is closer to start_pt than to
+        # end_pt, reverse it so it flows start→end correctly.
+        if len(outer_arc) >= 2:
+            d_fwd = _dist2(outer_arc[-1][:2], end_pt[:2])
+            d_rev = _dist2(outer_arc[0][:2],  end_pt[:2])
+            if d_rev < d_fwd:
+                outer_arc = list(reversed(outer_arc))
+        # Append arc (skip first/last if already equal to start/end)
+        for k, op in enumerate(outer_arc):
+            if k == 0 and _close_to(op[:2], start_pt[:2]):
+                continue
+            if k == len(outer_arc) - 1 and _close_to(op[:2], end_pt[:2]):
+                continue
+            result.append((op[0], op[1], op[2]))
+
+        # Insert end point
+        if a_end_on_vertex is not None:
+            ep = (a_pts[a_end_on_vertex][0],
+                  a_pts[a_end_on_vertex][1],
+                  a_pts[a_end_on_vertex][2])
+            if not result or not _close_to(result[-1][:2], ep[:2]):
+                result.append(ep)
+        else:
+            if not result or not _close_to(result[-1][:2], end_pt[:2]):
+                result.append(end_pt)
+
+        # Vertices strictly after the end edge
+        after_start = a_end_edge + 1 if a_end_on_vertex is None \
+            else (a_end_on_vertex + 1 if a_end_t == 1.0 else a_end_edge + 1)
+        result.extend((p[0], p[1], p[2]) for p in a_pts[after_start:])
+
+        if len(result) < 2:
+            print(f"[_boundary_substitution] Step 4 ERROR: result has only {len(result)} point(s)")
+            return None
+
+        print(f"[_boundary_substitution] Step 4: result polyline has {len(result)} pts "
+              f"(prefix={a_start_edge + 1}, outer_arc={len(outer_arc)}, "
+              f"suffix={len(result) - a_start_edge - 1 - len(outer_arc)} approx)")
+
+        return result
 
     @staticmethod
     def _clip_contour_2d(a_pts, b_pts, z):
@@ -930,21 +1242,6 @@ class i3model:
             input_arcs = a_pts
         else:
             input_arcs = [list(a_pts)]
-
-        # Flatten to a single pts list for shared-boundary detection.
-        # For a single arc this is itself; for multiple arcs we check the
-        # first arc only (subsequent arcs from a previous clip pass are open
-        # segments that will not share a boundary with B).
-        flat_a = input_arcs[0] if input_arcs else []
-
-        # -----------------------------------------------------------------------
-        # Dispatch: detect Type-2 (shared boundary) and splice instead of clip.
-        # Only meaningful for a single closed input arc (first call per sid).
-        # -----------------------------------------------------------------------
-        if len(input_arcs) == 1:
-            shared = i3model._detect_shared_boundary(flat_a, b_pts, tol=1.0)
-            if shared is not None:
-                return i3model._splice_shared_boundary(flat_a, b_pts, shared, z)
 
         # Ensure b_pts is closed (last point == first point)
         b_closed = list(b_pts)
@@ -1155,52 +1452,80 @@ class i3model:
     # -------------------------------------------------------------------------
 
     @staticmethod
-    def contour_difference_affected_zs(surfaces_a_by_z, surfaces_b_by_z):
-        """Return the set of Z levels present in both A and B."""
-        return set(surfaces_b_by_z.keys()) & set(surfaces_a_by_z.keys())
+    def actor_pts(actor):
+        """Extract the ordered list of (x, y, z) vertices from a vtkActor.
+
+        Reads the first polyline cell from the actor's vtkPolyData.  All
+        contour actors produced by this module store exactly one vtkPolyLine
+        cell, so this is the correct extraction path.
+
+        Returns a list of (x, y, z) tuples, or an empty list if the actor
+        carries no usable geometry.
+        """
+        mapper = actor.GetMapper()
+        if mapper is None:
+            return []
+        poly = mapper.GetInput()
+        if poly is None:
+            return []
+        pts = poly.GetPoints()
+        if pts is None:
+            return []
+
+        lines = poly.GetLines()
+        if lines is None or lines.GetNumberOfCells() == 0:
+            # Fall back: return all points in index order
+            return [(pts.GetPoint(i)[0],
+                     pts.GetPoint(i)[1],
+                     pts.GetPoint(i)[2])
+                    for i in range(pts.GetNumberOfPoints())]
+
+        lines.InitTraversal()
+        id_list = vtk.vtkIdList()
+        lines.GetNextCell(id_list)
+        return [(pts.GetPoint(id_list.GetId(i))[0],
+                 pts.GetPoint(id_list.GetId(i))[1],
+                 pts.GetPoint(id_list.GetId(i))[2])
+                for i in range(id_list.GetNumberOfIds())]
 
     @staticmethod
-    def contour_difference_clip_one_sid(a_pts, b_sid_dict, z):
-        """Clip one A surface_id's contour against all B surface_ids at this Z.
+    def contour_difference_clip_one_sid(actor_a, actor_b, z):
+        """Clip one A surface_id's contour against one B contour at this Z.
 
-        Tries boundary-substitution first (for notch-style cuts whose outer
-        edge coincides with A). Falls back to polygon clipping for cuts that
-        lie entirely inside A.
+        Extracts geometry from both actors and runs the boundary
+        substitution algorithm (intersection-based). Interior-cut polygon
+        clipping (_clip_contour_2d) is not used.
 
         Args:
-            a_pts:      [(x,y,z)...] for this A surface_id
-            b_sid_dict: {b_sid: [(x,y,z)...]} — all B surface_ids at this Z
-            z:          the Z coordinate
+            actor_a: vtkActor whose contour is being clipped (A)
+            actor_b: vtkActor clipping against (B)
+            z:       the Z coordinate
 
         Returns:
             (arc_segments, gap_fills) where arc_segments is a list of point-lists
             and gap_fills is a list of point-lists (B boundary arcs to display).
             Returns (None, []) if A is unaffected, ([], []) if fully consumed.
         """
-        combined_arcs = None
-        combined_fills = []
+        a_pts = i3model.actor_pts(actor_a)
+        b_pts = i3model.actor_pts(actor_b)
 
-        for pts_b in b_sid_dict.values():
-            if len(pts_b) < 3:
-                continue
+        if len(a_pts) < 2 or len(b_pts) < 3:
+            return None, []
 
-            a_input = combined_arcs if combined_arcs is not None else a_pts
+        # Intersection-based boundary substitution only
+        result = i3model._boundary_substitution(a_pts, b_pts)
+        if result is None:
+            # No usable substitution — A is unaffected
+            return None, []
 
-            # Try boundary-substitution first
-            shared = i3model._detect_shared_boundary(a_input, pts_b)
-            if shared is not None:
-                arcs, fills = i3model._splice_shared_boundary(
-                    a_input, pts_b, shared, z)
-            else:
-                arcs, fills = i3model._clip_contour_2d(a_input, pts_b, z)
+        arc_pts, inner_arc = result
+        arcs  = [arc_pts]
+        fills = [inner_arc] if len(inner_arc) >= 2 else []
 
-            if not arcs:
-                return [], []         # A sid fully consumed by this B sid
+        if not arcs:
+            return [], []
 
-            combined_arcs = arcs
-            combined_fills.extend(fills)
-
-        return combined_arcs, combined_fills  # None if no B sids processed
+        return arcs, fills
 
     @staticmethod
     def contour_difference_build_polydata(arc_state, gap_fills, z):
@@ -1256,12 +1581,13 @@ class i3model:
         return poly
 
     @staticmethod
-    def contour_difference_build_actor(poly, color):
+    def contour_difference_build_actor(poly, color, z):
         """Build a vtkActor from a vtkPolyData with the given line colour.
 
         Args:
             poly:  vtkPolyData with line cells
             color: [r, g, b] floats 0–1
+            z:     Z altitude to store as an attribute on the actor
 
         Returns a vtkActor, or None if poly is None.
         """
@@ -1273,62 +1599,8 @@ class i3model:
         actor.SetMapper(mapper)
         actor.GetProperty().SetColor(color)
         actor.GetProperty().SetLineWidth(2)
+        setattr(actor, "z", z)
         return actor
-
-    def contour_difference(self, surfaces_a_by_z, surfaces_b_by_z, color):
-        """Compute the contour difference A minus B for matching Z levels.
-
-        Operates on one B file at a time against the current live state of A
-        (surfaces_a_by_z is already the result of any previous differences).
-        Builds one actor per surviving A surface_id at each affected Z.
-
-        Args:
-            surfaces_a_by_z: {z: {sid: [(x,y,z)...]}} — current A contours
-            surfaces_b_by_z: {z: {sid: [(x,y,z)...]}} — B file contours
-            color:           [r, g, b] for new contour actors
-
-        Returns:
-            {sid: actor} dict of new actors for affected A surface_ids.
-            Unaffected sids are NOT included — caller keeps their old actors.
-            Also updates surfaces_a_by_z in-place with the new arc geometry
-            so subsequent difference calls operate on the clipped state.
-        """
-        affected_zs = i3model.contour_difference_affected_zs(
-            surfaces_a_by_z, surfaces_b_by_z)
-
-        new_actors = {}   # {sid: actor}
-
-        for z in affected_zs:
-            a_sid_dict = surfaces_a_by_z.get(z, {})
-            b_sid_dict = surfaces_b_by_z.get(z, {})
-
-            for a_sid, a_pts in list(a_sid_dict.items()):
-                arcs, fills = i3model.contour_difference_clip_one_sid(
-                    a_pts, b_sid_dict, z)
-
-                if arcs is None:
-                    # A sid unaffected by all B sids at this Z — skip
-                    continue
-
-                if not arcs:
-                    # A sid fully consumed — remove from live state
-                    del surfaces_a_by_z[z][a_sid]
-                    new_actors[a_sid] = None
-                    continue
-
-                # Build polydata and actor for the clipped result
-                poly = i3model.contour_difference_build_polydata(arcs, fills, z)
-                actor = i3model.contour_difference_build_actor(poly, color)
-                new_actors[a_sid] = actor
-
-                # Update live state so next difference call sees the clipped pts
-                if arcs and not isinstance(arcs[0], list):
-                    surfaces_a_by_z[z][a_sid] = list(arcs)
-                else:
-                    # Flatten first surviving arc as the new pts list
-                    surfaces_a_by_z[z][a_sid] = arcs[0] if arcs else []
-
-        return new_actors
 
     # -------------------------------------------------------------------------
     # Labels
@@ -1402,32 +1674,6 @@ class i3model:
     # -------------------------------------------------------------------------
     # Routes & Tonnes Database
     # -------------------------------------------------------------------------
-
-    def routes_save_database(self, routes_file):
-        """Import a CSV routes file into the SQLite database."""
-        try:
-            conn = self._connect()
-            cursor = conn.cursor()
-
-            cursor.execute("DROP TABLE IF EXISTS routes")
-            conn.commit()
-            cursor.execute(
-                "CREATE TABLE routes (route_id TEXT, segments TEXT)"
-            )
-
-            with open(routes_file, "r") as f:
-                for row in csv.reader(f):
-                    if not row:
-                        continue
-                    route_id = row[0]
-                    segments = ",".join(row[1:]) if len(row) > 1 else ""
-                    cursor.execute(
-                        "INSERT INTO routes VALUES (?, ?)", (route_id, segments))
-
-            conn.commit()
-        finally:
-            if "conn" in locals():
-                conn.close()
 
     def tonnes_save_database(self, tonnes_file):
         """Import a CSV tonnes file into the SQLite database."""

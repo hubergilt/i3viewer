@@ -691,7 +691,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
     def on_toggle_contour_actors(self):
         if self.context_type != "surface":
             return
-        actors = list(self.vtkWidget.contourActorsMap.get(self.context_id, {}).values())
+        actors = list(self.vtkWidget.contourActorsMap.get(self.context_id, []))
         for actor in actors:
             actor.SetVisibility(1 - actor.GetVisibility())
         if actors:
@@ -724,8 +724,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         if not file_path:
             return
 
-        sid_actor_map = self.vtkWidget.contourActorsMap.get(1, {})
-        actors = list(sid_actor_map.values())
+        actors = self.vtkWidget.contourActorsMap.get(1, [])
         if not actors:
             QMessageBox.warning(self, "Export Contours",
                                 "No contour actors found for the first surface.")

@@ -89,11 +89,7 @@ class i3vtkWidget(QWidget):
                 existing_contour_count = len(self.contourActors)
                 self.contourActors.extend(self.model.surfaces_format_actors(fileType))
                 new_contour_actors = self.contourActors[existing_contour_count:]
-                self.contourActorsMap[self.model.surface_file_id] = {
-                    actor.surface_id: actor
-                    for actor in new_contour_actors
-                    if hasattr(actor, "surface_id")
-                }
+                self.contourActorsMap[self.model.surface_file_id] = new_contour_actors
                 for actor in new_contour_actors:
                     self.AddActor(actor)
                 self.surfaceActor = self.surface_reconstruction_actor(
@@ -122,11 +118,7 @@ class i3vtkWidget(QWidget):
             existing_contour_count = len(self.contourActors)
             self.contourActors.extend(self.model.surfaces_format_actors(fileType))
             new_contour_actors = self.contourActors[existing_contour_count:]
-            self.contourActorsMap[self.model.surface_file_id] = {
-                actor.surface_id: actor
-                for actor in new_contour_actors
-                if hasattr(actor, "surface_id")
-            }
+            self.contourActorsMap[self.model.surface_file_id] = new_contour_actors
             for actor in new_contour_actors:
                 self.AddActor(actor)
             self.surfaceActor = self.surface_reconstruction_actor(
@@ -193,54 +185,90 @@ class i3vtkWidget(QWidget):
                 return actor
         return None
 
+    # Sentinel returned by _clip_actor_against_fid_b when actor_a is
+    # unaffected by every actor in actors_b (kept in place, untouched).
+    _UNCHANGED = object()
+
     def contour_difference(self, fid_b):
         """Apply contour difference fid=1 minus fid_b, updating contour actors.
 
-        Operates on one B file at a time against the current live state of A
-        stored in self.model.surfaces_by_file[1]. The live state is updated
-        in-place so subsequent calls see the already-clipped geometry.
+        Pairs actors from file A and file B that share the same z altitude.
+        For each matching pair, reads geometry directly from the actors' VTK
+        polydata, runs the boundary substitution algorithm, and swaps the A
+        actor for the clipped result.
 
-        Only contour actors are updated. Surface and wireframe actors are left
-        unchanged for now.
-
-        Returns True on success, False if nothing was affected.
+        Returns True if at least one actor was updated, False otherwise.
         """
         fid_a = 1
 
-        surfaces_a_by_z = self.model.surfaces_by_file.get(fid_a)
-        surfaces_b_by_z = self.model.surfaces_by_file.get(fid_b)
-        if not surfaces_a_by_z or not surfaces_b_by_z:
+        actors_a = self.contourActorsMap.get(fid_a, [])
+        actors_b = self.contourActorsMap.get(fid_b, [])
+        if not actors_a or not actors_b:
             return False
 
-        color = self.model.contourColor or [1.0, 1.0, 0.0]
+        color   = self.model.contourColor or [1.0, 1.0, 0.0]
+        changed = False
+        new_actor_list = []
 
-        # new_actors = {sid: actor | None}
-        # None means the sid was fully consumed (remove its actor entirely)
-        new_actors = self.model.contour_difference(
-            surfaces_a_by_z, surfaces_b_by_z, color)
+        for actor_a in actors_a:
+            new_actor = self._clip_actor_against_fid_b(actor_a, actors_b, color)
 
-        if not new_actors:
-            return False
+            if new_actor is self._UNCHANGED:
+                new_actor_list.append(actor_a)   # unaffected — keep in place
+                continue
 
-        sid_map = self.contourActorsMap.get(fid_a, {})
+            changed = True
+            self.RemoveActor(actor_a)
+            if actor_a in self.contourActors:
+                self.contourActors.remove(actor_a)
 
-        for sid, new_actor in new_actors.items():
-            old_actor = sid_map.get(sid)
-            if old_actor is not None:
-                self.RemoveActor(old_actor)
-                if old_actor in self.contourActors:
-                    self.contourActors.remove(old_actor)
-
-            if new_actor is not None:
+            if new_actor is not None:            # None → fully consumed
+                new_actor.surface_id = actor_a.surface_id
                 self.AddActor(new_actor)
                 self.contourActors.append(new_actor)
-                sid_map[sid] = new_actor
-            else:
-                sid_map.pop(sid, None)
+                new_actor_list.append(new_actor)
 
-        self.contourActorsMap[fid_a] = sid_map
+        if not changed:
+            return False
+
+        self.contourActorsMap[fid_a] = new_actor_list
         self.UpdateView(False)
         return True
+
+    def _clip_actor_against_fid_b(self, actor_a, actors_b, color):
+        """Clip one A contour actor against every same-Z actor in actors_b.
+
+        Returns:
+            _UNCHANGED   — actor_a is unaffected (no B actor produced a result)
+            None         — actor_a is fully consumed (should be removed)
+            vtkActor     — the rebuilt, clipped actor to use in actor_a's place
+        """
+        if not hasattr(actor_a, "z") or not hasattr(actor_a, "surface_id"):
+            return self._UNCHANGED
+
+        z = actor_a.z
+        combined_arcs = None
+
+        for actor_b in actors_b:
+            if not (hasattr(actor_b, "z") and actor_b.z == z):
+                continue
+
+            arcs, fills = i3model.contour_difference_clip_one_sid(
+                actor_a, actor_b, z)
+            # fills (B's inner boundary arcs) are intentionally discarded —
+            # only A's clipped contour is visualized.
+
+            if arcs is None:
+                continue
+            if not arcs:
+                return None   # fully consumed
+            combined_arcs = arcs
+
+        if combined_arcs is None:
+            return self._UNCHANGED
+
+        poly = i3model.contour_difference_build_polydata(combined_arcs, [], z)
+        return i3model.contour_difference_build_actor(poly, color, z)
 
     # -------------------------------------------------------------------------
     # Actor Management
@@ -865,7 +893,7 @@ class i3vtkWidget(QWidget):
 
     def SetVisibilityContourActors(self, surface_file_id, visible):
         """Show or hide all contour actors for the given surface_file_id."""
-        for actor in self.contourActorsMap.get(surface_file_id, {}).values():
+        for actor in self.contourActorsMap.get(surface_file_id, []):
             actor.SetVisibility(1 if visible else 0)
 
     def _build_contour_polydata(self, fileType, contour_actors=None):
@@ -902,8 +930,7 @@ class i3vtkWidget(QWidget):
     def UpdateSurface(self, fileType):
         cfg = self.delaunaycfg, self.surfacecfg
 
-        for fid, sid_actor_map in self.contourActorsMap.items():
-            contour_actors = list(sid_actor_map.values())
+        for fid, contour_actors in self.contourActorsMap.items():
             # Remove and replace surface actor for this file
             old_surface = self.surfaces_get_surface_actor(fid)
             if old_surface:
