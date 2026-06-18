@@ -81,6 +81,12 @@ class i3model:
     def hasSurfacesTable(self):
         return self.table_exists("surfaces")
 
+    def hasRoutesTable(self):
+        return self.table_exists("routes")
+
+    def hasTonnesTable(self):
+        return self.table_exists("tonnes")
+
     def hasRoutesTonnesTable(self):
         return self.table_exists("routes_tonnes")
 
@@ -880,27 +886,69 @@ class i3model:
             has = any(_pt_on_b_edge(pt[0], pt[1], j) for pt in intersections)
             edge_has_intersection.append(has)
 
+        # ------------------------------------------------------------------
+        # Find the LARGEST contiguous (circular) run of B-edges that have NO
+        # intersection with A. This run represents the genuine "gap" between
+        # the start and end of the shared boundary — the real notch.
+        #
+        # Real-world A/B pairs often have many small scattered gaps (single
+        # mismatched vertices, float rounding, short non-coincident stretches)
+        # in addition to the one large gap that represents the actual notch.
+        # Picking "the last transition seen while scanning j=0..n_b-1" (the
+        # naive approach) is unreliable here: whichever small scattered gap
+        # happens to be last in scan order wins, even though it has nothing
+        # to do with the real notch. Picking the LARGEST gap instead reliably
+        # identifies the real notch regardless of how many small spurious
+        # gaps exist elsewhere on the boundary.
+        #
+        #   Start Point — on the edge just BEFORE the gap (last edge with
+        #                  an intersection before the gap begins)
+        #   End Point   — on the edge just AFTER the gap (first edge with
+        #                  an intersection after the gap ends)
+        # ------------------------------------------------------------------
+        if not any(edge_has_intersection) or all(edge_has_intersection):
+            return None
+
+        # Rotate so we start scanning from an edge that HAS an intersection,
+        # guaranteeing any run of "no intersection" edges is fully contained
+        # (doesn't wrap past the end of the rotated order).
+        scan_start = next(k for k in range(n_b) if edge_has_intersection[k])
+        order = [(scan_start + k) % n_b for k in range(n_b)]
+
+        best_len = 0
+        best_run_start_idx = None  # index into `order`
+        best_run_end_idx = None    # index into `order`
+
+        idx = 0
+        while idx < n_b:
+            j = order[idx]
+            if not edge_has_intersection[j]:
+                run_start_idx = idx
+                while idx < n_b and not edge_has_intersection[order[idx]]:
+                    idx += 1
+                run_len = idx - run_start_idx
+                if run_len > best_len:
+                    best_len = run_len
+                    best_run_start_idx = run_start_idx
+                    best_run_end_idx = idx - 1
+            else:
+                idx += 1
+
+        start_edge = order[(best_run_start_idx - 1) % n_b]
+        end_edge   = order[(best_run_end_idx + 1) % n_b]
+
         start_pt = None   # (x, y, z)
         end_pt   = None   # (x, y, z)
 
-        for j in range(n_b):
-            cur  = edge_has_intersection[j]
-            prev = edge_has_intersection[(j - 1) % n_b]
+        for pt in intersections:
+            if _pt_on_b_edge(pt[0], pt[1], start_edge):
+                start_pt = (pt[0], pt[1], pt[2])
+                break
 
-            if cur and not prev:
-                # false → true transition: this is the End Point candidate
-                # (the last such transition will be the End Point)
-                for pt in intersections:
-                    if _pt_on_b_edge(pt[0], pt[1], j):
-                        end_pt = (pt[0], pt[1], pt[2])
-                        break
-
-            if not cur and prev:
-                # true → false transition: Start Point
-                for pt in intersections:
-                    if _pt_on_b_edge(pt[0], pt[1], (j - 1) % n_b):
-                        start_pt = (pt[0], pt[1], pt[2])
-                        break
+        for pt in intersections:
+            if _pt_on_b_edge(pt[0], pt[1], end_edge):
+                end_pt = (pt[0], pt[1], pt[2])
+                break
 
         if start_pt is None or end_pt is None:
             return None
@@ -938,47 +986,43 @@ class i3model:
         def _dist2(p, q):
             return (p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2
 
-        def _pt_on_b_edge(ix, iy, j):
-            p3, p4 = b_pts[j][:2], b_pts[(j + 1) % n_b][:2]
-            dx, dy = p4[0] - p3[0], p4[1] - p3[1]
-            seg_len2 = dx * dx + dy * dy
-            if seg_len2 < 1e-20:
-                return _dist2((ix, iy, 0), (p3[0], p3[1], 0)) < tol * tol
-            t = ((ix - p3[0]) * dx + (iy - p3[1]) * dy) / seg_len2
-            if t < -tol or t > 1.0 + tol:
-                return False
-            cx = p3[0] + t * dx
-            cy = p3[1] + t * dy
-            return (cx - ix) ** 2 + (cy - iy) ** 2 < tol * tol
-
         def _close_to(p2d, q2d):
             return (p2d[0] - q2d[0]) ** 2 + (p2d[1] - q2d[1]) ** 2 < tol * tol
 
-        # Ordered b vertices with Start/End inserted
+        # Ordered b vertices with Start/End inserted.
+        #
+        # start_pt / end_pt always coincide with an actual B VERTEX (Step 1
+        # only records vertex-to-vertex coincidences), so insertion is keyed
+        # on exact vertex match (_close_to(v, start_pt)) rather than fuzzy
+        # edge-projection (_pt_on_b_edge). Using edge-projection here was the
+        # bug: short, nearly-collinear consecutive B edges can all satisfy
+        # "start_pt projects onto this edge within tol", causing start_pt to
+        # be spliced in one (or more) edges too early and leaving the real
+        # vertex it replaced as a stray leftover point in the rebuilt arc.
         b_augmented = []    # list of (x, y, z, tag)  tag ∈ {'v','start','end'}
         start_inserted = False
         end_inserted   = False
 
         for j in range(n_b):
             v = b_pts[j]
-            # Check if the START point lies on edge j (from v to v_next)
-            if not start_inserted and _pt_on_b_edge(start_pt[0], start_pt[1], j):
-                # Insert start before the trailing vertex if not coincident
-                if not _close_to(start_pt[:2], v[:2]):
-                    b_augmented.append((*v[:3], 'v'))
+            is_start = not start_inserted and _close_to(start_pt[:2], v[:2])
+            is_end   = not end_inserted   and _close_to(end_pt[:2],   v[:2])
+
+            if is_start and is_end:
+                # Degenerate: start_pt and end_pt coincide with the same
+                # vertex (shouldn't normally happen, but guard against it).
                 b_augmented.append((*start_pt, 'start'))
+                b_augmented.append((*end_pt, 'end'))
                 start_inserted = True
-                # Also check end on same edge
-                if not end_inserted and _pt_on_b_edge(end_pt[0], end_pt[1], j):
-                    if not _close_to(end_pt[:2], start_pt[:2]):
-                        b_augmented.append((*end_pt, 'end'))
-                    end_inserted = True
+                end_inserted   = True
                 continue
 
-            # Check if the END point lies on edge j
-            if not end_inserted and _pt_on_b_edge(end_pt[0], end_pt[1], j):
-                if not _close_to(end_pt[:2], v[:2]):
-                    b_augmented.append((*v[:3], 'v'))
+            if is_start:
+                b_augmented.append((*start_pt, 'start'))
+                start_inserted = True
+                continue
+
+            if is_end:
                 b_augmented.append((*end_pt, 'end'))
                 end_inserted = True
                 continue
