@@ -1,5 +1,7 @@
 <RCC>
   <qresource prefix="/">
+    <file>icons/contourdiffcfg.svg</file>
+    <file>icons/contourdiff.svg</file>
     <file>icons/minsys.png</file>
     <file>icons/3dviewer.ico</file>
     <file>icons/contour.svg</file>

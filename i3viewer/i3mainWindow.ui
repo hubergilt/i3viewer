@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1002</width>
+    <width>1133</width>
     <height>666</height>
    </rect>
   </property>
@@ -139,8 +139,8 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1002</width>
-     <height>24</height>
+     <width>1133</width>
+     <height>28</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
@@ -250,6 +250,24 @@
    <addaction name="actionWireframe"/>
    <addaction name="actionSurfaceCfg"/>
    <addaction name="separator"/>
+  </widget>
+  <widget class="QToolBar" name="contourdiffToolBar">
+   <property name="windowTitle">
+    <string>Contour Diff Tool Bar</string>
+   </property>
+   <attribute name="toolBarArea">
+    <enum>TopToolBarArea</enum>
+   </attribute>
+   <attribute name="toolBarBreak">
+    <bool>false</bool>
+   </attribute>
+   <addaction name="contourDiffCfg"/>
+   <addaction name="actionContourDiff"/>
+   <addaction name="separator"/>
+   <addaction name="separator"/>
+   <addaction name="contourDiffBackward"/>
+   <addaction name="contourDiffPeriod"/>
+   <addaction name="contourDiffForward"/>
   </widget>
   <action name="actionOpenFile">
    <property name="enabled">
@@ -592,6 +610,65 @@
   <action name="actionAbout">
    <property name="text">
     <string>About...</string>
+   </property>
+  </action>
+  <action name="contourDiffCfg">
+   <property name="icon">
+    <iconset resource="icons.qrc">
+     <normaloff>:/icons/contourdiffcfg.svg</normaloff>:/icons/contourdiffcfg.svg</iconset>
+   </property>
+   <property name="text">
+    <string>ContourDiffCfg</string>
+   </property>
+   <property name="toolTip">
+    <string>Contour Diff Configuration</string>
+   </property>
+  </action>
+  <action name="actionContourDiff">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset resource="icons.qrc">
+     <normaloff>:/icons/contourdiff.svg</normaloff>:/icons/contourdiff.svg</iconset>
+   </property>
+   <property name="text">
+    <string>ContourDiff</string>
+   </property>
+   <property name="toolTip">
+    <string>Active Contour Diff</string>
+   </property>
+  </action>
+  <action name="contourDiffBackward">
+   <property name="icon">
+    <iconset resource="icons.qrc">
+     <normaloff>:/icons/backward.svg</normaloff>:/icons/backward.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Backward</string>
+   </property>
+   <property name="toolTip">
+    <string>Backward Period</string>
+   </property>
+  </action>
+  <action name="contourDiffPeriod">
+   <property name="text">
+    <string>P: 0/0</string>
+   </property>
+   <property name="toolTip">
+    <string>Period Value</string>
+   </property>
+  </action>
+  <action name="contourDiffForward">
+   <property name="icon">
+    <iconset resource="icons.qrc">
+     <normaloff>:/icons/forward.svg</normaloff>:/icons/forward.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Forward</string>
+   </property>
+   <property name="toolTip">
+    <string>Forward Period</string>
    </property>
   </action>
  </widget>

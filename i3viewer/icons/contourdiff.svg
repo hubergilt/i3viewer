@@ -1,0 +1,21 @@
+<svg viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" role="img">
+  <!-- Contour difference: two nested contour-line sets (blue = baseline, red = comparison)
+       offset from each other to show the shift/difference between them -->
+  <g fill="none" stroke-linejoin="round">
+    <!-- Baseline contours (cool/blue), centered slightly upper-left -->
+    <path d="M14,5 C20,5 24,9 24,14 C24,19 20,22 14,22 C9,22 5,19 5,14 C5,9 9,5 14,5 Z"
+          stroke="#9ecae1" stroke-width="1.6"/>
+    <path d="M14,8 C18,8 21,10.5 21,14 C21,17.5 18,19 14,19 C10.5,19 8,17.5 8,14 C8,10.5 10.5,8 14,8 Z"
+          stroke="#4292c6" stroke-width="1.6"/>
+    <path d="M14,11 C16.5,11 18,12.3 18,14 C18,15.7 16.5,17 14,17 C11.8,17 10,15.7 10,14 C10,12.3 11.8,11 14,11 Z"
+          stroke="#084594" stroke-width="1.6"/>
+
+    <!-- Comparison contours (warm/red), centered slightly lower-right, showing the difference -->
+    <path d="M22,14 C28,14 32,18 32,23 C32,28 28,31 22,31 C17,31 13,28 13,23 C13,18 17,14 22,14 Z"
+          stroke="#fcae91" stroke-width="1.6"/>
+    <path d="M22,17 C26,17 29,19.5 29,23 C29,26.5 26,28 22,28 C18.5,28 16,26.5 16,23 C16,19.5 18.5,17 22,17 Z"
+          stroke="#fb6a4a" stroke-width="1.6"/>
+    <path d="M22,20 C24.5,20 26,21.3 26,23 C26,24.7 24.5,26 22,26 C19.8,26 18,24.7 18,23 C18,21.3 19.8,20 22,20 Z"
+          stroke="#cb181d" stroke-width="1.6"/>
+  </g>
+</svg>
