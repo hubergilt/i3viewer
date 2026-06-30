@@ -1,0 +1,10 @@
+<svg viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" role="img">
+  <g>
+    <!-- Triangle edges -->
+    <path d="M18,6 L31,28 H5 Z" fill="none" stroke="#43a047" stroke-width="1.8" stroke-linejoin="round"/>
+    <!-- Vertex node handles -->
+    <circle cx="18" cy="6" r="3" fill="#ffffff" stroke="#2e7d32" stroke-width="1.8"/>
+    <circle cx="31" cy="28" r="3" fill="#ffffff" stroke="#2e7d32" stroke-width="1.8"/>
+    <circle cx="5" cy="28" r="3" fill="#ffffff" stroke="#2e7d32" stroke-width="1.8"/>
+  </g>
+</svg>

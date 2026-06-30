@@ -1,4 +1,5 @@
 from enum import Enum
+from collections import namedtuple
 
 import vtk
 
@@ -73,6 +74,27 @@ class HeatMapCfg(Enum):
     CLEAR = "clear"
     PERIOD = "period"
 
+class ContourDiffCfg(Enum):
+    """Represents the possible configuration for ContourDiff"""
+
+    INIT = "init"
+    OPEN = "open"
+    CONF = "conf"
+    CLEAR = "clear"
+    PERIOD = "period"
+
+
+# Result of i3model.run_contour_diff(): summary of the cumulative
+# period-by-period contour difference calculation.
+ContourDiffResult = namedtuple(
+    "ContourDiffResult", ["contours", "periods", "rows", "result_name"]
+)
+
+# Result of i3model.write_results(): summary of the session row written to
+# the sessions table, used to populate the sessions table widget.
+SessionResult = namedtuple(
+    "SessionResult", ["id", "date", "folder", "rows", "contours", "status"]
+)
 
 class DelaunayCfg:
     """

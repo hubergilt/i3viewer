@@ -15,8 +15,9 @@ from i3viewer.i3mainWindow import Ui_mainWindow
 from i3viewer.i3help import HelpDialog
 from i3viewer.i3about import AboutDialog
 from i3viewer.i3heatmap import HeatMapDialog
+from i3viewer.i3contourdiff import ContourDiffDialog
 from i3viewer.i3surface import SurfaceDialog
-from i3viewer.i3enums import DelaunayCfg, FileType, HeatMapCfg, SurfaceCfg, Params
+from i3viewer.i3enums import DelaunayCfg, FileType, HeatMapCfg, ContourDiffCfg, SurfaceCfg, Params
 
 
 # ---------------------------------------------------------------------------
@@ -102,10 +103,14 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         self.header_label = ""
         self.currentPeriod = 1
         self.maxPeriod = 12
+        self.currentContourDiffResult = None
+        self.currentContourDiffPeriod = 1
+        self.maxContourDiffPeriod = 12
 
         self.connect_actions()
         self.setup_context_menu()
         self.config_heatmap(HeatMapCfg.INIT)
+        self.config_contourdiff(ContourDiffCfg.INIT)
         self.config_init_surface()
 
         if hasattr(Qt, "CustomContextMenu"):
@@ -157,6 +162,13 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         self.actionHeatMap.triggered.connect(self.on_heatmap)
         self.actionBackward.triggered.connect(self.on_backward)
         self.actionForward.triggered.connect(self.on_forward)
+
+        self.contourDiffCfg.triggered.connect(self.on_contourdiffcfg)
+        self.actionContourDiff.triggered.connect(self.on_contourdiff)
+        self.contourDiffResult.activated.connect(self.on_contourdiff_result_selected)
+        self.contourDiffBackward.triggered.connect(self.on_contourdiff_backward)
+        self.contourDiffForward.triggered.connect(self.on_contourdiff_forward)
+
         self.actionUnpick.triggered.connect(self.on_unpick)
         self.actionPolyLabel.triggered.connect(self.on_polylabel)
         self.actionPointLabel.triggered.connect(self.on_pointlabel)
@@ -319,10 +331,17 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         if self.vtkWidget and self.vtkWidget.model and self.vtkWidget.model.hasSurfacesTable():
             self.actionSurface.setChecked(True)
             self.actionWireframe.setChecked(True)
+            # Auto-select the surface when only one is loaded — the surfaces
+            # table represents a single surface_file regardless of how many
+            # surface_id contour rings it contains, so this is the DB-open
+            # equivalent of open_xyzs_file's single-file auto-select below.
+            if self.vtkWidget.model.surface_file_id == 2:
+                self.selected_surface_file_id = 1
         self.treeview_setup()
         self.tableview_release()
         self.tableview_setup()
         self.config_heatmap(HeatMapCfg.OPEN)
+        self.config_contourdiff(ContourDiffCfg.OPEN)
         self._show_import_status()
 
     def open_csv_file(self, openNew=True):
@@ -1000,6 +1019,7 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         if self.file_path:
             self.fileType = None
         self.config_heatmap(HeatMapCfg.CLEAR)
+        self.config_contourdiff(ContourDiffCfg.CLEAR)
 
     # -----------------------------------------------------------------------
     # View Controls
@@ -1141,6 +1161,180 @@ class MainWindowApp(QtWidgets.QMainWindow, Ui_mainWindow):
         self.actionBackward.setDisabled(True)
         self.labelPeriod.setDisabled(True)
         self.actionForward.setDisabled(True)
+
+    # -----------------------------------------------------------------------
+    # Contour Diff
+    # -----------------------------------------------------------------------
+
+    def on_contourdiffcfg(self):
+        """Open the Contour Diff configuration dialog."""
+        if self.fileType != FileType.DB:
+            if hasattr(QMessageBox, "Ok"):
+                QMessageBox.information(
+                    self, "Contour Diff Tool Dialog",
+                    "Cannot perform contour diff on the current file, it only works on database.",
+                    getattr(QMessageBox, "Ok"),
+                )
+            return
+
+        if not (self.vtkWidget and self.vtkWidget.model):
+            return
+
+        self._switch_to_vtk_tab()
+        dialog = ContourDiffDialog(self, self.vtkWidget.model)
+        dialog.exec()
+        # Refresh unconditionally: the dialog's Close button calls reject(),
+        # not accept(), so gating on QDialog.Accepted would skip this even
+        # after a successful scan/import/diff/write flow. Whether there's
+        # now valid contour-diff data to browse is a DB fact, not something
+        # tied to how the dialog was dismissed.
+        self.config_contourdiff(ContourDiffCfg.CONF)
+
+    def _populate_contourdiff_results(self):
+        """(Re)populate comboBox_contourDiffResult with the distinct
+        result_name values currently in the contourdiffs table, with a
+        placeholder as the first/default entry."""
+        model = self.vtkWidget.model
+        self.contourDiffResult.blockSignals(True)
+        self.contourDiffResult.clear()
+        self.contourDiffResult.addItem("Select a result")
+        if model:
+            self.contourDiffResult.addItems(model.getContourDiffResultNames())
+        self.contourDiffResult.setCurrentIndex(0)
+        self.contourDiffResult.blockSignals(False)
+
+    def on_contourdiff_result_selected(self, index):
+        """Handle a user selection in comboBox_contourDiffResult.
+
+        Index 0 is the "Select a result" placeholder: clear any currently
+        rendered result, disable contourDiffBackward/Period/Forward, and
+        render nothing. Any other index loads contourdiff_id = 1 for that
+        result_name, renders it, and enables those three components.
+        """
+        model = self.vtkWidget.model
+        if not model:
+            return
+
+        if index <= 0:
+            self.currentContourDiffResult = None
+            self.currentContourDiffPeriod = 1
+            self.maxContourDiffPeriod = 12
+            self.contourDiffPeriod.setText("P: 00/00")
+            self.contourDiffBackward.setDisabled(True)
+            self.contourDiffPeriod.setDisabled(True)
+            self.contourDiffForward.setDisabled(True)
+            self.vtkWidget.OnContourDiff(False)
+            return
+
+        result_name = self.contourDiffResult.currentText()
+        if not model.hasContourDiffPeriods(result_name):
+            return
+
+        self.currentContourDiffResult = result_name
+        self.currentContourDiffPeriod = 1
+        self.maxContourDiffPeriod = model.getMaxContourDiffPeriod(result_name)
+        self.contourDiffPeriod.setText(f"P: 01/{self.maxContourDiffPeriod:02d}")
+        self.contourDiffBackward.setEnabled(True)
+        self.contourDiffPeriod.setEnabled(True)
+        self.contourDiffForward.setEnabled(True)
+
+        model.updateContourDiff(result_name, 1)
+        self.vtkWidget.OnContourDiff(True)
+
+    def on_contourdiff(self, checked):
+        """Master activation toggle for the contour-diff browsing UI.
+
+        actionContourDiff becomes enabled (clickable) as soon as the
+        contourdiffs table has valid data (see config_contourdiff). Checking
+        it here is what enables contourDiffResult/Backward/Period/Forward;
+        unchecking it disables those four again and hides the overlay.
+        """
+        model = self.vtkWidget.model
+        if not model:
+            self.actionContourDiff.setChecked(False)
+            return
+
+        if checked:
+            self.contourDiffResult.setEnabled(True)
+            self._populate_contourdiff_results()
+            if self.currentContourDiffResult:
+                self.contourDiffBackward.setEnabled(True)
+                self.contourDiffPeriod.setEnabled(True)
+                self.contourDiffForward.setEnabled(True)
+            self.vtkWidget.OnContourDiff(True)
+        else:
+            self.contourDiffResult.setDisabled(True)
+            self.contourDiffBackward.setDisabled(True)
+            self.contourDiffPeriod.setDisabled(True)
+            self.contourDiffForward.setDisabled(True)
+            self.vtkWidget.OnContourDiff(False)
+
+    def on_contourdiff_backward(self):
+        if not self.currentContourDiffResult:
+            return
+        self.currentContourDiffPeriod = self.currentContourDiffPeriod - 1 \
+            if self.currentContourDiffPeriod > 1 else self.maxContourDiffPeriod
+        self.contourDiffPeriod.setText(
+            f"P: {self.currentContourDiffPeriod:02d}/{self.maxContourDiffPeriod:02d}")
+        self._update_contourdiff_period()
+
+    def on_contourdiff_forward(self):
+        if not self.currentContourDiffResult:
+            return
+        self.currentContourDiffPeriod = self.currentContourDiffPeriod + 1 \
+            if self.currentContourDiffPeriod < self.maxContourDiffPeriod else 1
+        self.contourDiffPeriod.setText(
+            f"P: {self.currentContourDiffPeriod:02d}/{self.maxContourDiffPeriod:02d}")
+        self._update_contourdiff_period()
+
+    def _update_contourdiff_period(self):
+        model = self.vtkWidget.model
+        if not model or not self.currentContourDiffResult:
+            return
+        model.updateContourDiff(self.currentContourDiffResult, self.currentContourDiffPeriod)
+        self.vtkWidget.OnContourDiff(True)
+
+    def config_contourdiff(self, contourdiffcfg, checked=True):
+        """Update the contour diff toolbar controls based on state."""
+        model = self.vtkWidget.model
+        if not model and contourdiffcfg != ContourDiffCfg.INIT:
+            return
+
+        if contourdiffcfg == ContourDiffCfg.INIT:
+            self.config_contourdiff_init()
+        elif contourdiffcfg in (ContourDiffCfg.OPEN, ContourDiffCfg.CONF):
+            # actionContourDiff becomes clickable as soon as there's valid
+            # data in the contourdiffs table — activating it (on_contourdiff)
+            # is what then enables contourDiffResult/Backward/Period/Forward.
+            if model and model.hasContourDiffResult():
+                self.actionContourDiff.setEnabled(True)
+            else:
+                self.actionContourDiff.setDisabled(True)
+        elif contourdiffcfg == ContourDiffCfg.CLEAR:
+            self.currentContourDiffResult = None
+            self.currentContourDiffPeriod = 1
+            self.maxContourDiffPeriod = 12
+            self.contourDiffResult.blockSignals(True)
+            self.contourDiffResult.clear()
+            self.contourDiffResult.addItem("Select a result")
+            self.contourDiffResult.blockSignals(False)
+            self.actionContourDiff.setChecked(False)
+            self.actionContourDiff.setDisabled(True)
+            self.contourDiffResult.setDisabled(True)
+            self.contourDiffPeriod.setText("P: 00/00")
+            self.contourDiffBackward.setDisabled(True)
+            self.contourDiffPeriod.setDisabled(True)
+            self.contourDiffForward.setDisabled(True)
+
+    def config_contourdiff_init(self):
+        self.contourDiffResult.clear()
+        self.contourDiffResult.addItem("Select a result")
+        self.contourDiffPeriod.setText("P: 00/00")
+        self.actionContourDiff.setDisabled(True)
+        self.contourDiffResult.setDisabled(True)
+        self.contourDiffBackward.setDisabled(True)
+        self.contourDiffPeriod.setDisabled(True)
+        self.contourDiffForward.setDisabled(True)
 
     # -----------------------------------------------------------------------
     # Labels & Picking

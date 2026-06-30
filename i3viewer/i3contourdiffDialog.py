@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QComboBox, QDial
     QLabel, QLineEdit, QPlainTextEdit, QProgressBar,
     QPushButton, QSizePolicy, QSpacerItem, QTableWidget,
     QTableWidgetItem, QVBoxLayout, QWidget)
-import icons_rc
+import i3viewer.icons_rc
 
 class Ui_Dialog(object):
     def setupUi(self, Dialog):
@@ -58,6 +58,26 @@ class Ui_Dialog(object):
 
         self.horizontalLayout_folder.addWidget(self.pushButton_browse)
 
+        self.pushButton_scan = QPushButton(Dialog)
+        self.pushButton_scan.setObjectName(u"pushButton_scan")
+        self.pushButton_scan.setEnabled(False)
+        self.pushButton_scan.setStyleSheet(u"")
+        icon1 = QIcon()
+        icon1.addFile(u":/icons/scan.svg", QSize(), QIcon.Mode.Normal, QIcon.State.Off)
+        self.pushButton_scan.setIcon(icon1)
+
+        self.horizontalLayout_folder.addWidget(self.pushButton_scan)
+
+        self.pushButton_step1 = QPushButton(Dialog)
+        self.pushButton_step1.setObjectName(u"pushButton_step1")
+        self.pushButton_step1.setEnabled(False)
+        self.pushButton_step1.setStyleSheet(u"")
+        icon2 = QIcon()
+        icon2.addFile(u":/icons/folder-search.svg", QSize(), QIcon.Mode.Normal, QIcon.State.Off)
+        self.pushButton_step1.setIcon(icon2)
+
+        self.horizontalLayout_folder.addWidget(self.pushButton_step1)
+
 
         self.formLayout.setLayout(0, QFormLayout.FieldRole, self.horizontalLayout_folder)
 
@@ -73,26 +93,6 @@ class Ui_Dialog(object):
 
         self.horizontalLayout_steps = QHBoxLayout()
         self.horizontalLayout_steps.setObjectName(u"horizontalLayout_steps")
-        self.pushButton_scan = QPushButton(Dialog)
-        self.pushButton_scan.setObjectName(u"pushButton_scan")
-        self.pushButton_scan.setEnabled(False)
-        self.pushButton_scan.setStyleSheet(u"")
-        icon1 = QIcon()
-        icon1.addFile(u":/icons/scan.svg", QSize(), QIcon.Mode.Normal, QIcon.State.Off)
-        self.pushButton_scan.setIcon(icon1)
-
-        self.horizontalLayout_steps.addWidget(self.pushButton_scan)
-
-        self.pushButton_step1 = QPushButton(Dialog)
-        self.pushButton_step1.setObjectName(u"pushButton_step1")
-        self.pushButton_step1.setEnabled(False)
-        self.pushButton_step1.setStyleSheet(u"")
-        icon2 = QIcon()
-        icon2.addFile(u":/icons/folder-search.svg", QSize(), QIcon.Mode.Normal, QIcon.State.Off)
-        self.pushButton_step1.setIcon(icon2)
-
-        self.horizontalLayout_steps.addWidget(self.pushButton_step1)
-
         self.label_shovel = QLabel(Dialog)
         self.label_shovel.setObjectName(u"label_shovel")
 
@@ -108,6 +108,16 @@ class Ui_Dialog(object):
         self.comboBox_shovel.setSizePolicy(sizePolicy)
 
         self.horizontalLayout_steps.addWidget(self.comboBox_shovel)
+
+        self.label_result = QLabel(Dialog)
+        self.label_result.setObjectName(u"label_result")
+
+        self.horizontalLayout_steps.addWidget(self.label_result)
+
+        self.lineEdit_result = QLineEdit(Dialog)
+        self.lineEdit_result.setObjectName(u"lineEdit_result")
+
+        self.horizontalLayout_steps.addWidget(self.lineEdit_result)
 
         self.pushButton_step2 = QPushButton(Dialog)
         self.pushButton_step2.setObjectName(u"pushButton_step2")
@@ -274,9 +284,10 @@ class Ui_Dialog(object):
         self.lineEdit_folderPath.setPlaceholderText(QCoreApplication.translate("Dialog", u"Select a folder...", None))
         self.pushButton_browse.setText(QCoreApplication.translate("Dialog", u"Browse...", None))
         self.pushButton_scan.setText(QCoreApplication.translate("Dialog", u"Scan", None))
-        self.pushButton_step1.setText(QCoreApplication.translate("Dialog", u"Import to DB", None))
-        self.label_shovel.setText(QCoreApplication.translate("Dialog", u"Shovel ", None))
-        self.pushButton_step2.setText(QCoreApplication.translate("Dialog", u"Difference and Write DB", None))
+        self.pushButton_step1.setText(QCoreApplication.translate("Dialog", u"Import DB", None))
+        self.label_shovel.setText(QCoreApplication.translate("Dialog", u"Shovel: ", None))
+        self.label_result.setText(QCoreApplication.translate("Dialog", u"Result Name:", None))
+        self.pushButton_step2.setText(QCoreApplication.translate("Dialog", u"Diff and Write DB", None))
         self.label_progressStatus.setText(QCoreApplication.translate("Dialog", u"Ready", None))
         self.label_progressPct.setText(QCoreApplication.translate("Dialog", u"0%", None))
         self.plainTextEdit_log.setPlainText(QCoreApplication.translate("Dialog", u"Ready \u2014 browse and scan a folder, then run.", None))

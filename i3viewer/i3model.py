@@ -1,12 +1,22 @@
 import csv
 import math
+import os
 import random
+import re
 import sqlite3
 import sys
+from datetime import datetime
 
 import vtk
 
-from i3viewer.i3enums import FileType, Params
+from i3viewer.i3enums import ContourDiffResult, FileType, Params, SessionResult
+
+# Filename convention for contour-diff surface files: YYMM_SHnnn.xyzs
+# e.g. "2512_SH007.xyzs" -> period 2025-12, shovel "SH007"
+SHOVEL_FILENAME_PATTERN = re.compile(
+    r"^(?P<yy>\d{2})(?P<mm>\d{2})_(?P<shovel>SH\d{3})\.xyzs$",
+    re.IGNORECASE,
+)
 
 
 class i3model:
@@ -34,12 +44,29 @@ class i3model:
         self.actors = []
         self.contourColor = []
 
+        # Contour-diff workflow state (populated by run_contour_diff,
+        # consumed by write_results)
+        self.contourdiff_folder_path = None
+        self._last_contourdiff_result = None
+
+        # Contour-diff period-browsing state: which result_name is currently
+        # selected/rendered in the 3D view (set by updateContourDiff).
+        self.current_contourdiff_result = None
+
+        # Geometry for the period currently loaded by updateContourDiff().
+        # Kept separate from self.polylines (which holds real route data)
+        # so surface_id/polyline_id key collisions can never cross-pollute
+        # the two — see i3vtkWidget.OnContourDiff.
+        self.contourdiff_polylines = {}
+
     def RemoveAllActors(self):
         self.polylines = {}
         self.points = {}
         self.surfaces = {}
         self.polylabels = {}
         self.pointlabels = {}
+        self.contourdiff_polylines = {}
+        self.current_contourdiff_result = None
 
         self.polyline_id = 1
         self.point_id = 1
@@ -90,9 +117,636 @@ class i3model:
     def hasRoutesTonnesTable(self):
         return self.table_exists("routes_tonnes")
 
+    def hasContourDiffResult(self):
+        return self.table_exists("contourdiffs")
+
+    def hasImportedTable(self):
+        return self.table_exists("cuts")
+
+    def getContourDiffResultNames(self):
+        """Return the distinct result_name values stored in the contourdiffs
+        table, in the order they were first created (insertion order via
+        MIN(contourdiff_id) per group, then alphabetically as a tiebreak).
+        Used to populate comboBox_contourDiffResult. Returns an empty list
+        if the table doesn't exist or has no rows."""
+        if not self.table_exists("contourdiffs"):
+            return []
+
+        conn = self._connect()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT result_name FROM contourdiffs
+                GROUP BY result_name
+                ORDER BY MIN(rowid) ASC
+                """
+            )
+            return [row[0] for row in cursor.fetchall()]
+        finally:
+            conn.close()
+
+    def hasContourDiffPeriods(self, result_name):
+        """Return True if result_name has at least one contourdiff_id to
+        browse in the contourdiffs table."""
+        return bool(self._contourdiff_get_ids(result_name))
+
+    def getMaxContourDiffPeriod(self, result_name):
+        """Return the number of contourdiff_id snapshots available for
+        result_name (0 if none)."""
+        return len(self._contourdiff_get_ids(result_name))
+
+    def updateContourDiff(self, result_name, period_index):
+        """Load the Nth snapshot (1-based, ordered by contourdiff_id) of
+        result_name from the contourdiffs table into
+        self.contourdiff_polylines, ready for
+        i3vtkWidget.OnContourDiff() to turn into actors.
+
+        Deliberately does NOT touch self.polylines — that dict holds the
+        real route/polyline data and is shared with the route-rendering
+        pipeline (polylines_reread_table merges into it by key), so writing
+        contour-diff geometry there risks surface_id/polyline_id collisions
+        silently corrupting one or the other.
+
+        Does nothing if result_name has no snapshots or period_index is out
+        of range.
+        """
+        ids = self._contourdiff_get_ids(result_name)
+        if not ids or not (1 <= period_index <= len(ids)):
+            return
+
+        contourdiff_id = ids[period_index - 1]
+
+        conn = self._connect()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT surface_id, X, Y, Z FROM contourdiffs
+                WHERE result_name=? AND contourdiff_id=?
+                ORDER BY surface_id, point_id
+                """,
+                (result_name, contourdiff_id),
+            )
+            data = cursor.fetchall()
+        finally:
+            conn.close()
+
+        polylines = {}
+        for surface_id, x, y, z in data:
+            polylines.setdefault(surface_id, []).append((x, y, z, 0.0, None, None))
+
+        self.contourdiff_polylines = polylines
+        self.current_contourdiff_result = result_name
+
+    def contourdiff_create_actors(self):
+        """Build a fresh list of vtkActors from self.contourdiff_polylines
+        (the snapshot most recently loaded by updateContourDiff). Each actor
+        is tagged with .surface_id. Returns an empty list if no snapshot has
+        been loaded."""
+        color = self.contourColor or [1.0, 1.0, 0.0]
+        return self._build_actors_from_groups(self.contourdiff_polylines, color)
+
+    def contourdiff_surfaceA_create_actors(self):
+        """Build a fresh list of vtkActors for Contour A — the original
+        surfaces table geometry — so it can be rendered alongside the
+        current contourdiffs period as a fixed reference.
+
+        Reads directly from the surfaces table rather than self.surfaces,
+        so it never mutates or depends on whatever the main view currently
+        has loaded; this is purely for the contour-diff browsing overlay.
+        Each actor is tagged with .surface_id. Uses a muted gray so it's
+        visually distinct from the (typically yellow) diff-result actors.
+        Returns an empty list if the surfaces table doesn't exist or is
+        empty.
+        """
+        if not self.table_exists("surfaces"):
+            return []
+        surface_a_groups = self.surfaces_read_table()
+        return self._build_actors_from_groups(surface_a_groups, [0.6, 0.6, 0.6])
+
+    def _contourdiff_get_ids(self, result_name):
+        """Return the contourdiff_id values for result_name, sorted
+        ascending — this is the navigation order for period browsing.
+        Returns an empty list if result_name is falsy, the contourdiffs
+        table doesn't exist, or result_name has no rows."""
+        if not result_name or not self.table_exists("contourdiffs"):
+            return []
+
+        conn = self._connect()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT DISTINCT contourdiff_id FROM contourdiffs
+                WHERE result_name=?
+                ORDER BY contourdiff_id ASC
+                """,
+                (result_name,),
+            )
+            return [row[0] for row in cursor.fetchall()]
+        finally:
+            conn.close()
+
     # -------------------------------------------------------------------------
-    # Gradient Helper
+    # Contour Diff — Folder Scan
     # -------------------------------------------------------------------------
+
+    def scan_folder(self, folder_path):
+        """Scan folder_path for XYZS surface files and return their full paths.
+
+        Returns a sorted list of absolute file paths ending in '.xyzs'
+        (case-insensitive), or an empty list if the folder doesn't exist
+        or contains no matching files.
+        """
+        if not folder_path or not os.path.isdir(folder_path):
+            return []
+
+        matches = [
+            os.path.join(folder_path, name)
+            for name in os.listdir(folder_path)
+            if name.lower().endswith(".xyzs")
+        ]
+        return sorted(matches)
+
+    def get_shovel_names(self, file_paths):
+        """Extract distinct shovel names from a list of scanned file paths.
+
+        Expects filenames of the form 'YYMM_SHnnn.xyzs' (e.g. '2512_SH007.xyzs',
+        period = year 20YY, month MM, shovel = 'SH007'). Filenames that don't
+        match this pattern are ignored. Returns a sorted list of unique shovel
+        names (uppercased).
+        """
+        shovel_names = set()
+        for file_path in file_paths or []:
+            basename = os.path.basename(file_path)
+            match = SHOVEL_FILENAME_PATTERN.match(basename)
+            if match:
+                shovel_names.add(match.group("shovel").upper())
+        return sorted(shovel_names)
+
+    def is_valid_shovel_filename(self, file_path):
+        """Return True if file_path's basename matches the 'YYMM_SHnnn.xyzs'
+        naming convention expected by get_shovel_names/import_files."""
+        basename = os.path.basename(file_path)
+        return SHOVEL_FILENAME_PATTERN.match(basename) is not None
+
+    def _read_xyzs_surfaces(self, file_path):
+        """Read a single XYZS file and return its surfaces as a dict
+        of surface_index -> list of (x, y, z) vertices.
+
+        Mirrors surfaces_read_xyzs_file but reads an arbitrary path
+        instead of self.file_path, and uses local (per-file) surface
+        indices starting at 1, since these are not yet merged into
+        the model's main self.surfaces registry.
+        """
+        surfaces = {1: []}
+        current_id = 1
+
+        with open(file_path, "r") as file:
+            for line in file:
+                line = line.strip()
+                if line == "$":
+                    current_id += 1
+                    surfaces[current_id] = []
+                else:
+                    parts = line.split()
+                    if len(parts) == 3:
+                        x, y, z = (round(float(v), 3) for v in parts)
+                        surfaces[current_id].append((x, y, z))
+
+        return {k: v for k, v in surfaces.items() if v}
+
+    def import_files(self, file_paths):
+        """Import scanned XYZS files into the cuts table.
+
+        Each filename is expected to follow the 'YYMM_SHnnn.xyzs' convention
+        (see SHOVEL_FILENAME_PATTERN). Files that match are read and their
+        surface vertices are written to the database, tagged with their
+        period and shovel name. Files that don't match the naming
+        convention are skipped.
+
+        Returns a dict with:
+            "imported": list of basenames that were successfully imported
+            "skipped":  list of basenames that didn't match the naming convention
+        """
+        imported = []
+        skipped = []
+
+        conn = self._connect()
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS cuts (
+                period TEXT NOT NULL,
+                shovel TEXT NOT NULL,
+                surface_id INTEGER NOT NULL,
+                point_id INTEGER NOT NULL,
+                X REAL,
+                Y REAL,
+                Z REAL,
+                PRIMARY KEY (period, shovel, surface_id, point_id)
+            )
+            """
+        )
+
+        for file_path in file_paths or []:
+            basename = os.path.basename(file_path)
+            match = SHOVEL_FILENAME_PATTERN.match(basename)
+            if not match:
+                skipped.append(basename)
+                continue
+
+            period = "20" + match.group("yy") + "-" + match.group("mm")
+            shovel = match.group("shovel").upper()
+
+            surfaces = self._read_xyzs_surfaces(file_path)
+
+            cursor.execute(
+                "DELETE FROM cuts WHERE period=? AND shovel=?",
+                (period, shovel),
+            )
+            for surface_id, vertices in surfaces.items():
+                for pt_idx, (x, y, z) in enumerate(vertices, start=1):
+                    cursor.execute(
+                        """
+                        INSERT INTO cuts
+                            (period, shovel, surface_id, point_id, X, Y, Z)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (period, shovel, surface_id, pt_idx, x, y, z),
+                    )
+
+            imported.append(basename)
+
+        conn.commit()
+        conn.close()
+
+        return {"imported": imported, "skipped": skipped}
+
+    # -------------------------------------------------------------------------
+    # Contour Diff — Cumulative Period-by-Period Calculation
+    # -------------------------------------------------------------------------
+
+    def _cuts_get_periods(self, cursor=None):
+        """Return all distinct periods present in the cuts table, sorted
+        chronologically (periods are stored as 'YYYY-MM' strings, which sort
+        correctly as text).
+
+        If a cursor is supplied, it is reused (no new connection is opened) —
+        this matters because run_contour_diff holds its own connection open
+        across the whole period loop, and opening a second connection
+        against the same database file while the first has a write
+        transaction in flight can raise 'database is locked' on SQLite.
+        """
+        if cursor is not None:
+            cursor.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='cuts'"
+            )
+            if cursor.fetchone() is None:
+                return []
+            cursor.execute("SELECT DISTINCT period FROM cuts ORDER BY period ASC")
+            return [row[0] for row in cursor.fetchall()]
+
+        if not self.table_exists("cuts"):
+            return []
+
+        conn = self._connect()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT DISTINCT period FROM cuts ORDER BY period ASC")
+            return [row[0] for row in cursor.fetchall()]
+        finally:
+            conn.close()
+
+    def _cuts_read_period(self, period, shovel_name, cursor=None):
+        """Fetch cuts rows for one period, grouped by surface_id, applying
+        the shovel filter (no filter when shovel_name is falsy or 'All').
+
+        Returns a dict of surface_id -> list of (x, y, z) vertices, ordered
+        by point_id.
+
+        If a cursor is supplied, it is reused instead of opening a new
+        connection (see _cuts_get_periods for why this matters).
+        """
+        owns_conn = cursor is None
+        conn = None
+        if owns_conn:
+            conn = self._connect()
+            cursor = conn.cursor()
+
+        try:
+            if shovel_name and shovel_name.lower() != "all":
+                cursor.execute(
+                    """
+                    SELECT surface_id, X, Y, Z FROM cuts
+                    WHERE period=? AND shovel=?
+                    ORDER BY surface_id, point_id
+                    """,
+                    (period, shovel_name),
+                )
+            else:
+                cursor.execute(
+                    """
+                    SELECT surface_id, X, Y, Z FROM cuts
+                    WHERE period=?
+                    ORDER BY surface_id, point_id
+                    """,
+                    (period,),
+                )
+            data = cursor.fetchall()
+        finally:
+            if owns_conn:
+                conn.close()
+
+        surfaces = {}
+        for surface_id, x, y, z in data:
+            surfaces.setdefault(surface_id, []).append((x, y, z))
+        return surfaces
+
+    @staticmethod
+    def _build_actors_from_groups(groups, color):
+        """Build vtkActors (one per surface_id group) from a dict of
+        surface_id -> list of (x, y, z) vertices, tagging each actor with
+        .surface_id and .z so the contour-diff matching logic can pair them
+        by altitude."""
+        actors = []
+        for surface_id, vertices in groups.items():
+            actor = i3model.surfaces_create_actor_static(surface_id, vertices, color)
+            if actor:
+                actors.append(actor)
+        return actors
+
+    @staticmethod
+    def surfaces_create_actor_static(surface_id, vertices, color):
+        """Stateless variant of surfaces_create_actor (no self required),
+        used by the contour-diff pipeline to build A/B actors from arbitrary
+        point groups rather than self.surfaces."""
+        if not vertices:
+            return None
+
+        points = vtk.vtkPoints()
+        cells = vtk.vtkCellArray()
+        polyline = vtk.vtkPolyLine()
+        polyline.GetPointIds().SetNumberOfIds(len(vertices))
+
+        z = vertices[0][2]
+        for i, (x, y, z_pt, *_) in enumerate(vertices):
+            pid = points.InsertNextPoint(x, y, z_pt)
+            polyline.GetPointIds().SetId(i, pid)
+
+        cells.InsertNextCell(polyline)
+        return i3model.surfaces_build_actor_static(points, cells, color, surface_id, z)
+
+    @staticmethod
+    def surfaces_build_actor_static(points, cells, color, surface_id, z):
+        """Stateless variant of surfaces_build_actor."""
+        poly_data = vtk.vtkPolyData()
+        poly_data.SetPoints(points)
+        poly_data.SetLines(cells)
+
+        mapper = vtk.vtkPolyDataMapper()
+        mapper.SetInputData(poly_data)
+
+        actor = vtk.vtkActor()
+        actor.SetMapper(mapper)
+        actor.GetProperty().SetRepresentationToSurface()
+        actor.GetProperty().EdgeVisibilityOff()
+        actor.GetProperty().SetColor(color)
+        actor.GetProperty().SetLineWidth(2)
+        setattr(actor, "surface_id", surface_id)
+        setattr(actor, "color", color)
+        setattr(actor, "z", z)
+        return actor
+
+    def _contour_diff_one_period(self, actors_a, actors_b, color):
+        """Clip every A actor against same-Z B actors for a single period.
+
+        Mirrors i3vtkWidget._clip_actor_against_fid_b/contour_difference,
+        but operates on plain actor lists rather than the widget's
+        contourActorsMap, so it can run headless inside the model.
+
+        Returns the new list of A actors representing Contour A's state
+        after this period (unaffected actors are kept as-is; clipped
+        actors are replaced; fully-consumed actors are dropped).
+        """
+        new_actors = []
+        for actor_a in actors_a:
+            if not hasattr(actor_a, "z") or not hasattr(actor_a, "surface_id"):
+                new_actors.append(actor_a)
+                continue
+
+            z = actor_a.z
+            combined_arcs = None
+            consumed = False
+
+            for actor_b in actors_b:
+                if not (hasattr(actor_b, "z") and actor_b.z == z):
+                    continue
+
+                arcs, fills = i3model.contour_difference_clip_one_sid(actor_a, actor_b, z)
+                if arcs is None:
+                    continue
+                if not arcs:
+                    consumed = True
+                    break
+                combined_arcs = arcs
+
+            if consumed:
+                continue   # fully consumed — dropped from Contour A
+
+            if combined_arcs is None:
+                new_actors.append(actor_a)   # unaffected — keep in place
+                continue
+
+            poly = i3model.contour_difference_build_polydata(combined_arcs, [], z)
+            new_actor = i3model.contour_difference_build_actor(poly, color, z)
+            if new_actor is not None:
+                new_actor.surface_id = actor_a.surface_id
+                new_actors.append(new_actor)
+
+        return new_actors
+
+    def _contourdiffs_ensure_table(self, cursor):
+        """Create the contourdiffs table if it doesn't exist yet.
+
+        Each snapshot (one period's resulting geometry) is identified by
+        the pair (result_name, contourdiff_id) — contourdiff_id is unique
+        only within its result_name group, not globally, and restarts at 1
+        for every new result_name. Since one snapshot spans many point
+        rows, the row-level primary key extends that pair with
+        (surface_id, point_id) to keep individual rows unique while
+        preserving (result_name, contourdiff_id) as the snapshot key.
+        """
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS contourdiffs (
+                result_name TEXT NOT NULL,
+                contourdiff_id INTEGER NOT NULL,
+                period TEXT NOT NULL,
+                shovel TEXT NOT NULL,
+                surface_id INTEGER NOT NULL,
+                point_id INTEGER NOT NULL,
+                X REAL,
+                Y REAL,
+                Z REAL,
+                PRIMARY KEY (result_name, contourdiff_id, surface_id, point_id)
+            )
+            """
+        )
+
+    def _contourdiffs_next_id(self, cursor, result_name):
+        """Return the next contourdiff_id for result_name: the current max
+        for that group, plus one (1 if the group doesn't exist yet)."""
+        cursor.execute(
+            "SELECT MAX(contourdiff_id) FROM contourdiffs WHERE result_name=?",
+            (result_name,),
+        )
+        row = cursor.fetchone()
+        current_max = row[0] if row and row[0] is not None else 0
+        return current_max + 1
+
+    def _contourdiffs_save_snapshot(self, cursor, contourdiff_id, period, shovel_name, result_name, actors):
+        """Write one period's resulting Contour A geometry to the
+        contourdiffs table as a snapshot tagged with contourdiff_id (unique
+        within result_name)."""
+        self._contourdiffs_ensure_table(cursor)
+
+        shovel_value = shovel_name if shovel_name else "All"
+        rows_written = 0
+
+        for actor in actors:
+            pts = i3model.actor_pts(actor)
+            for pt_idx, (x, y, z) in enumerate(pts, start=1):
+                cursor.execute(
+                    """
+                    INSERT INTO contourdiffs
+                        (result_name, contourdiff_id, period, shovel, surface_id, point_id, X, Y, Z)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (result_name, contourdiff_id, period, shovel_value, actor.surface_id, pt_idx, x, y, z),
+                )
+                rows_written += 1
+
+        return rows_written
+
+    def run_contour_diff(self, shovel_name, result_name=None):
+        """Run the cumulative, period-by-period contour difference.
+
+        Periods are taken from the cuts table in chronological order.  For
+        the first period, Contour A is the surfaces table; for every
+        subsequent period, Contour A is the contour-diff result produced by
+        the previous period. Contour B for each period is the cuts data for
+        that period, filtered by shovel_name unless shovel_name is "All"
+        (or falsy), in which case every shovel is included.
+
+        After each period is processed, the resulting Contour A geometry is
+        written to the contourdiffs table as a snapshot tagged with that
+        period's metadata.
+
+        Args:
+            shovel_name: shovel to filter by, or "All"/falsy for no filter.
+            result_name: label stored alongside each contourdiffs snapshot
+                         (typically the folder name shown in lineEdit_result).
+
+        Returns a ContourDiffResult(contours, periods, rows, result_name)
+        summarizing the run. The same object is cached on the model so a
+        subsequent call to write_results() can persist a session row for it.
+        """
+        color = self.contourColor or [1.0, 1.0, 0.0]
+        contour_a_groups = self.surfaces if self.surfaces else self.surfaces_read_table()
+        actors_a = self._build_actors_from_groups(contour_a_groups, color)
+
+        conn = self._connect()
+        cursor = conn.cursor()
+        try:
+            self._contourdiffs_ensure_table(cursor)
+            cursor.execute(
+                "DELETE FROM contourdiffs WHERE result_name=?", (result_name,)
+            )
+
+            periods = self._cuts_get_periods(cursor=cursor)
+
+            total_rows = 0
+            total_contours = 0
+
+            for period in periods:
+                contour_b_groups = self._cuts_read_period(period, shovel_name, cursor=cursor)
+                actors_b = self._build_actors_from_groups(contour_b_groups, color)
+
+                actors_a = self._contour_diff_one_period(actors_a, actors_b, color)
+
+                next_contourdiff_id = self._contourdiffs_next_id(cursor, result_name)
+                rows_written = self._contourdiffs_save_snapshot(
+                    cursor, next_contourdiff_id, period, shovel_name, result_name, actors_a
+                )
+                total_rows += rows_written
+                total_contours = len(actors_a)
+
+            conn.commit()
+        finally:
+            conn.close()
+
+        result = ContourDiffResult(
+            contours=total_contours,
+            periods=len(periods),
+            rows=total_rows,
+            result_name=result_name,
+        )
+        self._last_contourdiff_result = result
+        self.current_contourdiff_result = result_name
+        return result
+
+    def write_results(self):
+        """Write the most recent run_contour_diff() result to the sessions
+        table and return a SessionResult summarizing the saved session.
+
+        Must be called after run_contour_diff(); raises RuntimeError
+        otherwise.
+        """
+        if self._last_contourdiff_result is None:
+            raise RuntimeError("write_results() called before run_contour_diff()")
+
+        result = self._last_contourdiff_result
+        folder = self.contourdiff_folder_path or ""
+        folder_name = os.path.basename(os.path.normpath(folder)) if folder else (
+            result.result_name or ""
+        )
+        date_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+
+        conn = self._connect()
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS sessions (
+                session_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date TEXT,
+                folder TEXT,
+                rows INTEGER,
+                contours INTEGER,
+                status TEXT
+            )
+            """
+        )
+        cursor.execute(
+            """
+            INSERT INTO sessions (date, folder, rows, contours, status)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (date_str, folder_name, result.rows, result.contours, "Complete"),
+        )
+        session_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+
+        return SessionResult(
+            id=session_id,
+            date=date_str,
+            folder=folder_name,
+            rows=result.rows,
+            contours=result.contours,
+            status="Complete",
+        )
 
     @staticmethod
     def _compute_gradient(current, previous):
@@ -847,11 +1501,16 @@ class i3model:
     def _bsub_step2_find_start_end(b_pts, intersections, tol=0.4):
         """Step 2 — Find Start Point and End Point on actor_b.
 
-        Walk b edges from index 0. For each edge, check whether any
-        intersection point lies on it (within tol).  Detect transitions:
-            first  true→false  →  Start Point (on the leaving edge)
-            last   false→true  →  End Point   (on the entering edge)
-        The last edge wraps back to the first for circular comparison.
+        Walk b edges from index 0, recording whether any intersection point
+        lies on each edge (within tol). Every contiguous (circular) run of
+        edges with no intersection is a candidate "gap" in B's coincidence
+        with A. The real notch is the candidate whose two flanking matched
+        points (the matched vertices immediately before/after the run) are
+        geometrically farthest apart — see the inline comment below for why
+        edge count alone is not a reliable way to pick it.
+
+            Start Point — on the edge just BEFORE the winning gap
+            End Point   — on the edge just AFTER the winning gap
 
         Args:
             b_pts:         ordered list of (x, y, z) — closed polygon (B)
@@ -887,19 +1546,23 @@ class i3model:
             edge_has_intersection.append(has)
 
         # ------------------------------------------------------------------
-        # Find the LARGEST contiguous (circular) run of B-edges that have NO
-        # intersection with A. This run represents the genuine "gap" between
-        # the start and end of the shared boundary — the real notch.
+        # Find the real "gap" — the contiguous (circular) run of B-edges
+        # with NO intersection with A that represents the genuine notch
+        # between the start and end of the shared boundary.
         #
-        # Real-world A/B pairs often have many small scattered gaps (single
-        # mismatched vertices, float rounding, short non-coincident stretches)
-        # in addition to the one large gap that represents the actual notch.
-        # Picking "the last transition seen while scanning j=0..n_b-1" (the
-        # naive approach) is unreliable here: whichever small scattered gap
-        # happens to be last in scan order wins, even though it has nothing
-        # to do with the real notch. Picking the LARGEST gap instead reliably
-        # identifies the real notch regardless of how many small spurious
-        # gaps exist elsewhere on the boundary.
+        # Real-world A/B pairs often have several small spurious gaps
+        # (near-duplicate/degenerate vertices, float rounding) scattered
+        # through the genuinely-overlapping stretch of B's boundary, in
+        # addition to the one real gap where B actually diverges from A.
+        #
+        # Edge COUNT does not reliably distinguish them: a spurious gap can
+        # span two or more tiny/degenerate edges (centimetres total) and so
+        # out-rank, by raw length, a real notch that happens to consist of
+        # only one edge but spans real distance. What does reliably
+        # distinguish them is geometric span — the straight-line distance
+        # between the run's two flanking matched points — so every
+        # candidate run is scored on that distance regardless of its edge
+        # count, and the run with the largest span wins.
         #
         #   Start Point — on the edge just BEFORE the gap (last edge with
         #                  an intersection before the gap begins)
@@ -915,10 +1578,25 @@ class i3model:
         scan_start = next(k for k in range(n_b) if edge_has_intersection[k])
         order = [(scan_start + k) % n_b for k in range(n_b)]
 
-        best_len = 0
-        best_run_start_idx = None  # index into `order`
-        best_run_end_idx = None    # index into `order`
-
+        # Collect every candidate run of consecutive "no intersection" edges.
+        # Real-world B polygons commonly have several spurious short gaps
+        # (near-duplicate/degenerate vertices where the projection of a
+        # matched A-vertex falls just outside this specific edge's
+        # parametric window, even though both neighbouring vertices match)
+        # scattered through the genuinely-overlapping stretch, in addition
+        # to the one real gap where B actually diverges from A.
+        #
+        # Edge COUNT is not a reliable way to tell them apart: a spurious
+        # gap can easily span two or more tiny/degenerate edges (a few
+        # centimetres total) and so out-rank, by raw count, the real notch
+        # even when the real notch is geometrically enormous by comparison.
+        # What actually distinguishes the real notch is geometric span: the
+        # straight-line distance between the run's two flanking matched
+        # points. A float-rounding artifact's flanking points are
+        # centimetres apart; a genuine divergence is real distance apart.
+        # So every candidate run is scored on that distance, regardless of
+        # how many edges make it up, and the run with the largest span wins.
+        candidate_runs = []  # list of (run_start_idx, run_end_idx)
         idx = 0
         while idx < n_b:
             j = order[idx]
@@ -926,16 +1604,37 @@ class i3model:
                 run_start_idx = idx
                 while idx < n_b and not edge_has_intersection[order[idx]]:
                     idx += 1
-                run_len = idx - run_start_idx
-                if run_len > best_len:
-                    best_len = run_len
-                    best_run_start_idx = run_start_idx
-                    best_run_end_idx = idx - 1
+                candidate_runs.append((run_start_idx, idx - 1))
             else:
                 idx += 1
 
-        start_edge = order[(best_run_start_idx - 1) % n_b]
-        end_edge   = order[(best_run_end_idx + 1) % n_b]
+        def _run_edges(run):
+            run_start_idx, run_end_idx = run
+            start_edge = order[(run_start_idx - 1) % n_b]
+            end_edge = order[(run_end_idx + 1) % n_b]
+            return start_edge, end_edge
+
+        def _flanking_points(run):
+            start_edge, end_edge = _run_edges(run)
+            s_pt = next((pt for pt in intersections if _pt_on_b_edge(pt[0], pt[1], start_edge)), None)
+            e_pt = next((pt for pt in intersections if _pt_on_b_edge(pt[0], pt[1], end_edge)), None)
+            return s_pt, e_pt
+
+        best_run = None
+        best_gap2 = -1.0
+        for run in candidate_runs:
+            s_pt, e_pt = _flanking_points(run)
+            if s_pt is None or e_pt is None:
+                continue
+            gap2 = (s_pt[0] - e_pt[0]) ** 2 + (s_pt[1] - e_pt[1]) ** 2
+            if gap2 > best_gap2:
+                best_gap2 = gap2
+                best_run = run
+
+        if best_run is None:
+            best_run = candidate_runs[0]
+
+        start_edge, end_edge = _run_edges(best_run)
 
         start_pt = None   # (x, y, z)
         end_pt   = None   # (x, y, z)
@@ -1816,6 +2515,48 @@ class i3model:
                 )
                 """,
                 (period,),
+            )
+            conn.commit()
+        finally:
+            if "conn" in locals():
+                conn.close()
+
+    def get_sessions(self):
+        """Return all rows from the sessions table as SessionResult tuples,
+        most recent first. Returns an empty list if no sessions exist yet."""
+        if not self.table_exists("sessions"):
+            return []
+        try:
+            conn = self._connect()
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT session_id, date, folder, rows, contours, status
+                FROM sessions
+                ORDER BY session_id DESC
+                """
+            )
+            data = cursor.fetchall()
+            return [
+                SessionResult(
+                    id=row[0], date=row[1], folder=row[2],
+                    rows=row[3], contours=row[4], status=row[5],
+                )
+                for row in data
+            ]
+        finally:
+            if "conn" in locals():
+                conn.close()
+
+    def delete_session(self, session_id):
+        """Delete a session row from the sessions table by id."""
+        if not self.table_exists("sessions"):
+            return
+        try:
+            conn = self._connect()
+            cursor = conn.cursor()
+            cursor.execute(
+                "DELETE FROM sessions WHERE session_id=?", (session_id,)
             )
             conn.commit()
         finally:

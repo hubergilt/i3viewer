@@ -27,6 +27,7 @@ class i3vtkWidget(QWidget):
         self.actors = []
         self.contourActors = []
         self.contourActorsMap = {}
+        self.contourDiffActors = []
         self.selected_actor = None
         self.surfaceActor = None
         self.wireframeActor = None
@@ -39,6 +40,7 @@ class i3vtkWidget(QWidget):
         self.pointlabel = False
         self.surface = False
         self.wireframe = False
+        self.contourdiff = False
 
         self.scalarBarActor = vtk.vtkScalarBarActor()
         self.contour_color = []
@@ -279,11 +281,13 @@ class i3vtkWidget(QWidget):
             self.RemoveActor(actor)
         self.actors = []
         self.RemoveContourActors()
+        self.RemoveContourDiffActors()
         self.RemoveSurfaceActor()
         self.RemoveWireframeActor()
         self.RemoveScaleBarActor()
         self.contourActors = []
         self.contourActorsMap = {}
+        self.contourDiffActors = []
         self.UpdateView()
         if self.model:
             self.model.RemoveAllActors()
@@ -719,6 +723,35 @@ class i3vtkWidget(QWidget):
         return min_width + (clamped - min_tonne) * (max_width - min_width) / (max_tonne - min_tonne)
 
     # -------------------------------------------------------------------------
+    # Contour Diff — Period Browsing
+    # -------------------------------------------------------------------------
+
+    def OnContourDiff(self, enable):
+        """Toggle the contour-diff period overlay on/off.
+
+        Reads from model.contourdiff_polylines — the period most recently
+        loaded by model.updateContourDiff() — and rebuilds a dedicated set
+        of actors for it (self.contourDiffActors), kept separate from the
+        route-polyline actors so toggling contour diff never touches the
+        regular polyline rendering.
+
+        Called both on initial toggle (i3main.on_contourdiff) and after
+        every backward/forward period step (i3main._update_contourdiff_period),
+        each time with the model's contourdiff_polylines already refreshed
+        for the period to display.
+        """
+        self.contourdiff = enable
+
+        self.RemoveContourDiffActors()
+        self.contourDiffActors = []
+
+        if enable and self.model:
+            self.contourDiffActors = self.model.contourdiff_create_actors()
+            self.AddContourDiffActors()
+
+        self.UpdateView(False)
+
+    # -------------------------------------------------------------------------
     # Scale Bar
     # -------------------------------------------------------------------------
 
@@ -864,6 +897,14 @@ class i3vtkWidget(QWidget):
 
     def RemoveContourActors(self):
         for actor in self.contourActors:
+            self.RemoveActor(actor)
+
+    def AddContourDiffActors(self):
+        for actor in self.contourDiffActors:
+            self.AddActor(actor)
+
+    def RemoveContourDiffActors(self):
+        for actor in self.contourDiffActors:
             self.RemoveActor(actor)
 
     def UpdateColorContourActors(self, color):

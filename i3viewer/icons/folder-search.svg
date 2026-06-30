@@ -1,0 +1,12 @@
+<svg viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" role="img">
+  <g stroke-linejoin="round" stroke-linecap="round">
+    <!-- Folder -->
+    <path d="M4,10 V8 C4,7.2 4.7,6.5 5.5,6.5 H12.5L15,9.5H23.5 C24.3,9.5 25,10.2 25,11 V12.5 H4 Z"
+          fill="#ffd54f" stroke="#4a4a4a" stroke-width="1.6"/>
+    <path d="M4,10 L3.2,25.5 C3.2,26.3 3.8,27 4.6,27 H21 C21.8,27 22.5,26.4 22.6,25.7 L24.8,13.5 C25,12.4 24.2,11.2 23,11.2 H5.6 C4.6,11.2 3.8,12 3.7,13 Z"
+          fill="#ffca28" stroke="#4a4a4a" stroke-width="1.6"/>
+    <!-- Magnifying glass -->
+    <circle cx="24" cy="24" r="6" fill="#e3f2fd" stroke="#1565c0" stroke-width="2"/>
+    <line x1="28.2" y1="28.2" x2="33" y2="33" stroke="#1565c0" stroke-width="2.4"/>
+  </g>
+</svg>

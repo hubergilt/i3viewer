@@ -63,7 +63,7 @@ class ContourDiffDialog(QDialog, Ui_Dialog):
         self.ui.lineEdit_search.textChanged.connect(self.filter_sessions)
 
         # Initialize icons and session table
-        self.config_icons()
+        # self.config_icons()
         self.refresh_sessions_table()
 
     def config_icons(self):
@@ -93,15 +93,16 @@ class ContourDiffDialog(QDialog, Ui_Dialog):
             self.folder_path = folder_path
             self.ui.lineEdit_folderPath.setText(folder_path)
             self.ui.pushButton_scan.setEnabled(True)
+            self.ui.lineEdit_result.setText(os.path.basename(os.path.normpath(folder_path)))
             self.log(f"Folder: {folder_path}")
 
     def scan_folder(self):
-        """Scan the selected folder for XYZ files and populate the shovel combo box."""
+        """Scan the selected folder for XYZS files and populate the shovel combo box."""
         if not self.model or not self.folder_path:
             return
 
         self.set_progress(0, "Scanning…")
-        self.log("Scanning for XYZ files…")
+        self.log("Scanning for XYZS files…")
 
         self.scanned_files = self.model.scan_folder(self.folder_path)
 
@@ -109,20 +110,31 @@ class ContourDiffDialog(QDialog, Ui_Dialog):
             QMessageBox.warning(
                 self,
                 "No Files Found",
-                "No XYZ files were found in the selected folder.",
+                "No XYZS files were found in the selected folder.",
             )
             self.set_progress(0, "Ready")
             return
 
-        for f in self.scanned_files:
-            self.log(f"  found {os.path.basename(f)}")
-        self.log(f"{len(self.scanned_files)} files found")
+        valid_files = [f for f in self.scanned_files if self.model.is_valid_shovel_filename(f)]
+        invalid_files = [f for f in self.scanned_files if f not in valid_files]
 
-        # Populate the shovel name combo box from the scan results
+        for f in valid_files:
+            self.log(f"  found {os.path.basename(f)}")
+        for f in invalid_files:
+            self.log(f"  ignored {os.path.basename(f)} — doesn't match YYMM_SHnnn.xyzs")
+        self.log(
+            f"{len(self.scanned_files)} files found — "
+            f"{len(valid_files)} valid, {len(invalid_files)} ignored"
+        )
+
+        # Populate the shovel name combo box from the scan results.
+        # "All" is always first/default and means no shovel filter is applied.
         shovel_names = self.model.get_shovel_names(self.scanned_files)
         self.ui.comboBox_shovel.clear()
+        self.ui.comboBox_shovel.addItem("All")
         self.ui.comboBox_shovel.addItems(shovel_names)
-        self.ui.comboBox_shovel.setEnabled(bool(shovel_names))
+        self.ui.comboBox_shovel.setCurrentIndex(0)
+        self.ui.comboBox_shovel.setEnabled(True)
 
         self.ui.pushButton_step1.setEnabled(True)
         self.set_progress(33, "Scan complete")
@@ -135,9 +147,16 @@ class ContourDiffDialog(QDialog, Ui_Dialog):
         self.set_progress(33, "Importing to DB…")
         self.log("Importing files to DB…")
 
-        self.model.import_files(self.scanned_files)
+        result = self.model.import_files(self.scanned_files)
+        imported = result.get("imported", [])
+        skipped = result.get("skipped", [])
 
-        self.log(f"{len(self.scanned_files)} XYZ files imported")
+        for f in skipped:
+            self.log(f"  skipped {f} — doesn't match YYMM_SHnnn.xyzs")
+        self.log(
+            f"{len(imported)} XYZS files imported"
+            + (f", {len(skipped)} skipped" if skipped else "")
+        )
         self.set_progress(50, "Import complete")
         self.config_icons()
         self.ui.pushButton_step2.setEnabled(True)
@@ -157,10 +176,13 @@ class ContourDiffDialog(QDialog, Ui_Dialog):
             )
             return
 
+        result_name = self.ui.lineEdit_result.text().strip()
+        self.model.contourdiff_folder_path = self.folder_path
+
         self.set_progress(50, "Running contour difference…")
         self.log(f"Contour difference — shovel '{shovel_name}'…")
 
-        result = self.model.run_contour_diff(shovel_name)
+        result = self.model.run_contour_diff(shovel_name, result_name)
 
         self.log(f"Contour difference complete — {result.contours} regions processed")
         self.set_progress(75, "Contour diff done")

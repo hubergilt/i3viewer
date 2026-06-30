@@ -264,6 +264,7 @@
    <addaction name="contourDiffCfg"/>
    <addaction name="actionContourDiff"/>
    <addaction name="separator"/>
+   <addaction name="contourDiffResult"/>
    <addaction name="separator"/>
    <addaction name="contourDiffBackward"/>
    <addaction name="contourDiffPeriod"/>
@@ -669,6 +670,14 @@
    </property>
    <property name="toolTip">
     <string>Forward Period</string>
+   </property>
+  </action>
+  <action name="contourDiffResult">
+   <property name="text">
+    <string>Result</string>
+   </property>
+   <property name="toolTip">
+    <string>Choose Folder Name</string>
    </property>
   </action>
  </widget>

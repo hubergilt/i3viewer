@@ -19,7 +19,7 @@ from PySide6.QtGui import (QAction, QBrush, QColor, QConicalGradient,
 from PySide6.QtWidgets import (QApplication, QFrame, QGroupBox, QHBoxLayout,
     QHeaderView, QMainWindow, QMenu, QMenuBar,
     QSizePolicy, QSplitter, QStatusBar, QTabWidget,
-    QTableView, QToolBar, QTreeView, QWidget)
+    QTableView, QToolBar, QTreeView, QWidget, QComboBox)
 
 from i3viewer.i3vtkWidget import i3vtkWidget
 import i3viewer.icons_rc
@@ -197,6 +197,9 @@ class Ui_mainWindow(object):
         self.contourDiffForward = QAction(mainWindow)
         self.contourDiffForward.setObjectName(u"contourDiffForward")
         self.contourDiffForward.setIcon(icon17)
+        #self.contourDiffResult = QAction(mainWindow)
+        self.contourDiffResult = QComboBox(mainWindow)
+        self.contourDiffResult.setObjectName(u"contourDiffResult")
         self.centralwidget = QWidget(mainWindow)
         self.centralwidget.setObjectName(u"centralwidget")
         self.horizontalLayout_3 = QHBoxLayout(self.centralwidget)
@@ -345,6 +348,7 @@ class Ui_mainWindow(object):
         self.contourdiffToolBar.addAction(self.contourDiffCfg)
         self.contourdiffToolBar.addAction(self.actionContourDiff)
         self.contourdiffToolBar.addSeparator()
+        self.contourdiffToolBar.addWidget(self.contourDiffResult)
         self.contourdiffToolBar.addSeparator()
         self.contourdiffToolBar.addAction(self.contourDiffBackward)
         self.contourdiffToolBar.addAction(self.contourDiffPeriod)
@@ -466,6 +470,10 @@ class Ui_mainWindow(object):
         self.contourDiffForward.setText(QCoreApplication.translate("mainWindow", u"Forward", None))
 #if QT_CONFIG(tooltip)
         self.contourDiffForward.setToolTip(QCoreApplication.translate("mainWindow", u"Forward Period", None))
+#endif // QT_CONFIG(tooltip)
+        #self.contourDiffResult.setText(QCoreApplication.translate("mainWindow", u"Result", None))
+#if QT_CONFIG(tooltip)
+        self.contourDiffResult.setToolTip(QCoreApplication.translate("mainWindow", u"Choose Folder Name", None))
 #endif // QT_CONFIG(tooltip)
         self.groupBoxGraph.setTitle(QCoreApplication.translate("mainWindow", u"Views", None))
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.tab), QCoreApplication.translate("mainWindow", u"Viewer", None))

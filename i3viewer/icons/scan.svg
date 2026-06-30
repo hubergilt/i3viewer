@@ -1,0 +1,14 @@
+<svg viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" role="img">
+  <g fill="none" stroke="#4a4a4a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Corner brackets -->
+    <path d="M5,11 V7 C5,5.9 5.9,5 7,5 H11"/>
+    <path d="M25,5 H29 C30.1,5 31,5.9 31,7 V11"/>
+    <path d="M31,25 V29 C31,30.1 30.1,31 29,31 H25"/>
+    <path d="M11,31 H7 C5.9,31 5,30.1 5,29 V25"/>
+  </g>
+  <!-- Scan line through the middle -->
+  <line x1="5" y1="18" x2="31" y2="18" stroke="#e53935" stroke-width="2" stroke-linecap="round"/>
+  <!-- Subject being scanned -->
+  <path d="M13,23 C13,19 15,15 18,15 C21,15 23,19 23,23"
+        fill="none" stroke="#90a4ae" stroke-width="1.8" stroke-linecap="round"/>
+</svg>

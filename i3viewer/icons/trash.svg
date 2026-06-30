@@ -1,0 +1,14 @@
+<svg viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" role="img">
+  <g fill="none" stroke="#4a4a4a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Lid -->
+    <line x1="6" y1="10" x2="30" y2="10"/>
+    <path d="M13,10 V7 C13,6.2 13.7,5.5 14.5,5.5 H21.5 C22.3,5.5 23,6.2 23,7 V10"/>
+    <!-- Can body -->
+    <path d="M9,13 L10.5,29.5 C10.6,30.4 11.3,31 12.2,31 H23.8 C24.7,31 25.4,30.4 25.5,29.5 L27,13 Z"
+          fill="#eceff1"/>
+    <!-- Ribs -->
+    <line x1="14.5" y1="16" x2="15" y2="27"/>
+    <line x1="18" y1="16" x2="18" y2="27"/>
+    <line x1="21.5" y1="16" x2="21" y2="27"/>
+  </g>
+</svg>

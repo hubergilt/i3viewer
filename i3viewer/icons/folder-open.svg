@@ -1,0 +1,10 @@
+<svg viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" role="img">
+  <g fill="none" stroke="#4a4a4a" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round">
+    <!-- Back panel of the folder -->
+    <path d="M4,11 V8.5 C4,7.7 4.7,7 5.5,7 H13 L15.5,10 H24 C24.8,10 25.5,10.7 25.5,11.5 V13 H4 Z"
+          fill="#ffd54f"/>
+    <!-- Open front flap -->
+    <path d="M4,11 L3,28 C3,28.8 3.7,29.5 4.5,29.5 H29 C29.8,29.5 30.4,28.9 30.6,28.2 L33.5,15.5 C33.8,14.3 32.9,13 31.6,13 H6.2 C5.1,13 4.1,13.9 4,15 Z"
+          fill="#ffca28"/>
+  </g>
+</svg>

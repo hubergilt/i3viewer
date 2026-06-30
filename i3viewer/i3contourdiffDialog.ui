@@ -51,8 +51,42 @@
           <string>Browse...</string>
          </property>
          <property name="icon">
-          <iconset>
+          <iconset resource="icons.qrc">
            <normaloff>:/icons/folder-open.svg</normaloff>:/icons/folder-open.svg</iconset>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="pushButton_scan">
+         <property name="enabled">
+          <bool>false</bool>
+         </property>
+         <property name="styleSheet">
+          <string notr="true"/>
+         </property>
+         <property name="text">
+          <string>Scan</string>
+         </property>
+         <property name="icon">
+          <iconset resource="icons.qrc">
+           <normaloff>:/icons/scan.svg</normaloff>:/icons/scan.svg</iconset>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="pushButton_step1">
+         <property name="enabled">
+          <bool>false</bool>
+         </property>
+         <property name="styleSheet">
+          <string notr="true"/>
+         </property>
+         <property name="text">
+          <string>Import DB</string>
+         </property>
+         <property name="icon">
+          <iconset resource="icons.qrc">
+           <normaloff>:/icons/folder-search.svg</normaloff>:/icons/folder-search.svg</iconset>
          </property>
         </widget>
        </item>
@@ -70,43 +104,9 @@
    <item>
     <layout class="QHBoxLayout" name="horizontalLayout_steps">
      <item>
-      <widget class="QPushButton" name="pushButton_scan">
-       <property name="enabled">
-        <bool>false</bool>
-       </property>
-       <property name="styleSheet">
-        <string notr="true"/>
-       </property>
-       <property name="text">
-        <string>Scan</string>
-       </property>
-       <property name="icon">
-        <iconset>
-         <normaloff>:/icons/scan.svg</normaloff>:/icons/scan.svg</iconset>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QPushButton" name="pushButton_step1">
-       <property name="enabled">
-        <bool>false</bool>
-       </property>
-       <property name="styleSheet">
-        <string notr="true"/>
-       </property>
-       <property name="text">
-        <string>Import to DB</string>
-       </property>
-       <property name="icon">
-        <iconset>
-         <normaloff>:/icons/folder-search.svg</normaloff>:/icons/folder-search.svg</iconset>
-       </property>
-      </widget>
-     </item>
-     <item>
       <widget class="QLabel" name="label_shovel">
        <property name="text">
-        <string>Shovel </string>
+        <string>Shovel: </string>
        </property>
       </widget>
      </item>
@@ -124,6 +124,16 @@
       </widget>
      </item>
      <item>
+      <widget class="QLabel" name="label_result">
+       <property name="text">
+        <string>Result Name:</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLineEdit" name="lineEdit_result"/>
+     </item>
+     <item>
       <widget class="QPushButton" name="pushButton_step2">
        <property name="enabled">
         <bool>false</bool>
@@ -132,10 +142,10 @@
         <string notr="true"/>
        </property>
        <property name="text">
-        <string>Difference and Write DB</string>
+        <string>Diff and Write DB</string>
        </property>
        <property name="icon">
-        <iconset>
+        <iconset resource="icons.qrc">
          <normaloff>:/icons/vector-triangle.svg</normaloff>:/icons/vector-triangle.svg</iconset>
        </property>
       </widget>
@@ -234,7 +244,7 @@
         <string>Delete</string>
        </property>
        <property name="icon">
-        <iconset>
+        <iconset resource="icons.qrc">
          <normaloff>:/icons/trash.svg</normaloff>:/icons/trash.svg</iconset>
        </property>
       </widget>
